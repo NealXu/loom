@@ -25,6 +25,8 @@ from datetime import datetime
 import click
 
 from loom.adapters.cc import CCAdapter
+from loom.adapters.codex import CodexAdapter
+from loom.adapters.dsh import DshAdapter
 from loom.adapters.fake import FakeRunner
 from loom.adapters.pi import PIAdapter
 from loom.core.loader import instantiate, load_template
@@ -36,6 +38,8 @@ _RUNNERS = {
     "fake": FakeRunner,
     "cc": CCAdapter,
     "pi": PIAdapter,
+    "codex": CodexAdapter,
+    "dsh": DshAdapter,
 }
 
 

@@ -107,5 +107,15 @@ def _row_to_instance_detail(row) -> dict:
         "created_at": row["created_at"],
         "finished_at": row["finished_at"],
         "blocked_reason": row["blocked_reason"],
-        "params": json.loads(row["params"]) if row["params"] else {},
+        "params": _safe_json_loads(row["params"]),
     }
+
+
+def _safe_json_loads(value: str) -> dict:
+    """Parse JSON string, returning {} on failure."""
+    if not value:
+        return {}
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return {}

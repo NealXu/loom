@@ -6,8 +6,6 @@ succeeds, and every state transition is recorded as an event.
 """
 import asyncio
 import json
-import tempfile
-import os
 
 import pytest
 
@@ -48,11 +46,10 @@ def _run_coroutine(coro):
 
 
 @pytest.fixture()
-def store():
+def store(tmp_path):
     """Create a temp-db store with one instance, three nodes, and edges A->C, B->C."""
-    tmp = tempfile.mkdtemp()
-    db_path = os.path.join(tmp, "smoke.db")
-    with Store(db_path) as s:
+    db_path = tmp_path / "smoke.db"
+    with Store(str(db_path)) as s:
         inst = Instance(id="inst-1", template_id="tmpl-1", status="pending")
         s.create_instance(inst)
 
@@ -129,7 +126,8 @@ def test_end_to_end_instance_completes_with_fake_runner(store):
     events = store.conn.execute(
         "SELECT COUNT(*) AS cnt FROM events WHERE source = 'state_transition'",
     ).fetchone()
-    assert events["cnt"] > 0
+    # 3 nodes x 2 transitions (pending->running, running->succeeded) + 2 instance transitions = 8
+    assert events["cnt"] == 8
 
 
 def test_instance_records_transitions_throughout(store):
