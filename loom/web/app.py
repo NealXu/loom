@@ -27,16 +27,25 @@ class GateRequestBody(BaseModel):
     reason: str = ""
 
 
+class RunRequestBody(BaseModel):
+    """Template path + params for POST /api/run."""
+    template: str
+    params: dict = {}
+
+
 def create_app(store) -> FastAPI:
     """Pure app factory. No uvicorn.run."""
     app = FastAPI(title="Loom", version="0.1.0")
 
     @app.get("/api/instances")
-    def list_instances():
-        rows = store.conn.execute(
-            "SELECT id, template_id, title, status, cost_usd, cost_tokens, "
-            "created_at, finished_at FROM instances"
-        ).fetchall()
+    def list_instances(limit: Optional[int] = None, offset: int = 0):
+        sql = ("SELECT id, template_id, title, status, cost_usd, cost_tokens, "
+               "created_at, finished_at FROM instances ORDER BY created_at DESC")
+        params: list = []
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params += [limit, offset]
+        rows = store.conn.execute(sql, params).fetchall()
         return [_row_to_instance_summary(r) for r in rows]
 
     @app.get("/api/instances/{instance_id}")
@@ -155,6 +164,43 @@ def create_app(store) -> FastAPI:
             raise HTTPException(status_code=400, detail="Invalid gate transition")
 
         return GateDecisionResult(approved=False, node_id=node_id)
+
+    # -----------------------------------------------------------------------
+    # P4-C: run trigger + SSE event stream
+    # -----------------------------------------------------------------------
+
+    @app.post("/api/run", status_code=201)
+    def run_instance(body: RunRequestBody):
+        """Instantiate a template into a pending instance (daemon executes it)."""
+        from pathlib import Path
+        from loom.core.loader import load_template, instantiate
+
+        if not Path(body.template).exists():
+            raise HTTPException(status_code=404, detail="Template not found")
+        try:
+            tpl = load_template(body.template)
+            for key, spec in (tpl.params or {}).items():
+                if isinstance(spec, dict) and spec.get("required") and key not in body.params:
+                    raise ValueError(f"missing required param: {key}")
+            instance, nodes, edges = instantiate(tpl, body.params)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        store.create_instance(instance)
+        for n in nodes:
+            store.create_node(n)
+        for e in edges:
+            store.create_edge(e)
+        return {"instance_id": instance.id, "status": instance.status}
+
+    @app.get("/api/events/stream")
+    async def stream_events():
+        """Server-Sent Events: new rows in the events table."""
+        from starlette.responses import StreamingResponse
+        from loom.web.sse import event_stream
+        return StreamingResponse(event_stream(store), media_type="text/event-stream")
 
     return app
 
