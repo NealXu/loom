@@ -1,0 +1,23 @@
+id: handoff-refresh
+version: 1
+trigger: [inbox, cron]
+provenance: manual
+params:
+  project_path: {type: string, required: true}
+nodes:
+  - id: analyze
+    kind: analysis
+    tier: heavy
+    spec: "Scan {{project_path}} and summarize current state."
+    depends_on: []
+  - id: refresh
+    kind: coding
+    tier: tooling
+    spec: "Rewrite {{project_path}}/handoff.md from the analysis."
+    depends_on: [analyze]
+  - id: commit
+    kind: coding
+    tier: tooling
+    gate: approve
+    spec: "Commit the refreshed handoff.md in {{project_path}}."
+    depends_on: [refresh]
