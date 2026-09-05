@@ -1,5 +1,6 @@
-"""Tests for RunnerAdapter interface and FakeRunner."""
+"""Tests for RunnerAdapter interface, FakeRunner, and CCAdapter."""
 import asyncio
+import sys
 import pytest
 
 from loom.core.models import Node
@@ -30,3 +31,48 @@ def test_runner_adapter_is_abstract():
     """RunnerAdapter cannot be instantiated (raises TypeError)."""
     with pytest.raises(TypeError):
         RunnerAdapter()
+
+
+# ---------------------------------------------------------------------------
+# CCAdapter tests
+# ---------------------------------------------------------------------------
+
+# Stubs: Python one-liners invoked via [sys.executable, -c, code, ...]
+_CC_ECHO_CODE = "import sys; i=sys.argv.index('-p'); print(sys.argv[i+1])"
+_CC_FAIL_CODE = "import sys; sys.exit(42)"
+
+
+class TestCCAdapter:
+    """Tests for the Claude Code runner adapter."""
+
+    def test_cc_adapter_returns_success_output(self, tmp_path):
+        """CCAdapter with echo stub returns success=True and node.spec in output."""
+        from loom.adapters.cc import CCAdapter
+
+        adapter = CCAdapter(binary=[sys.executable, "-c", _CC_ECHO_CODE], cwd=str(tmp_path))
+        node = Node(id="n1", instance_id="i1", template_id="t1", spec="hello cc", project_path=str(tmp_path))
+
+        result = asyncio.run(adapter.run(node))
+
+        assert result.success is True
+        assert "hello cc" in result.output
+        assert result.exit_code == 0
+
+    def test_cc_adapter_maps_exit_code(self, tmp_path):
+        """CCAdapter with failing stub returns success=False and correct exit_code."""
+        from loom.adapters.cc import CCAdapter
+
+        adapter = CCAdapter(binary=[sys.executable, "-c", _CC_FAIL_CODE], cwd=str(tmp_path))
+        node = Node(id="n2", instance_id="i1", template_id="t1", spec="will fail", project_path=str(tmp_path))
+
+        result = asyncio.run(adapter.run(node))
+
+        assert result.success is False
+        assert result.exit_code == 42
+
+    def test_cc_adapter_defaults_name(self):
+        """CCAdapter().name == 'cc'."""
+        from loom.adapters.cc import CCAdapter
+
+        adapter = CCAdapter()
+        assert adapter.name == "cc"
