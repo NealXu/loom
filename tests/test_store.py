@@ -142,3 +142,35 @@ def test_store_update_instance_status():
             inst = store.get_instance("i1")
             assert inst.status == "succeeded"
 
+
+# ---------------------------------------------------------------------------
+# P2-E: write methods
+# ---------------------------------------------------------------------------
+
+def test_store_create_edge_and_list():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with Store(os.path.join(tmpdir, "t.db")) as store:
+            store.create_edge(Edge(instance_id="i1", from_node="a", to_node="b"))
+            edges = store.list_edges("i1")
+            assert len(edges) == 1
+            assert edges[0].from_node == "a" and edges[0].to_node == "b"
+
+
+def test_store_create_event_returns_id():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with Store(os.path.join(tmpdir, "t.db")) as store:
+            from loom.core.models import Event
+            eid = store.create_event(Event(source="hook", payload={"k": 1}))
+            assert eid >= 1
+            row = store.conn.execute("SELECT * FROM events WHERE id = ?", (eid,)).fetchone()
+            assert '"k": 1' in row["payload"]
+
+
+def test_store_create_artifact():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with Store(os.path.join(tmpdir, "t.db")) as store:
+            from loom.core.models import Artifact
+            store.create_artifact(Artifact(node_id="n1", kind="md", path="/x/y.md"))
+            arts = store.list_artifacts("n1")
+            assert len(arts) == 1 and arts[0].path == "/x/y.md"
+

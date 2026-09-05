@@ -200,6 +200,44 @@ class Store:
         )
         self.conn.commit()
 
+    # -----------------------------------------------------------------------
+    # P2-E: remaining write methods (converge scattered raw SQL)
+    # -----------------------------------------------------------------------
+
+    def create_edge(self, edge: Edge) -> None:
+        self.conn.execute(
+            "INSERT INTO edges (instance_id, from_node, to_node, type, condition) VALUES (?, ?, ?, ?, ?)",
+            (edge.instance_id, edge.from_node, edge.to_node, edge.type, edge.condition or ""),
+        )
+        self.conn.commit()
+
+    def create_event(self, event: Event) -> int:
+        import json
+        cur = self.conn.execute(
+            "INSERT INTO events (source, payload, received_at, consumed_by_instance) VALUES (?, ?, ?, ?)",
+            (event.source, json.dumps(event.payload), event.received_at.isoformat(),
+             event.consumed_by_instance),
+        )
+        self.conn.commit()
+        return cur.lastrowid
+
+    def create_artifact(self, artifact: Artifact) -> None:
+        self.conn.execute(
+            "INSERT INTO artifacts (node_id, kind, path, sha256, vault_link) VALUES (?, ?, ?, ?, ?)",
+            (artifact.node_id, artifact.kind, artifact.path, artifact.sha256, artifact.vault_link),
+        )
+        self.conn.commit()
+
+    def list_artifacts(self, node_id: str) -> list[Artifact]:
+        rows = self.conn.execute(
+            "SELECT * FROM artifacts WHERE node_id = ?", (node_id,)
+        ).fetchall()
+        return [
+            Artifact(node_id=r["node_id"], kind=r["kind"], path=r["path"],
+                     sha256=r["sha256"] or "", vault_link=r["vault_link"] or "")
+            for r in rows
+        ]
+
     def update_instance_status(self, instance_id: str, status: str, **fields) -> None:
         """Update instance status and optional fields (started_at, finished_at, etc.)."""
         set_clauses = ["status = ?"]

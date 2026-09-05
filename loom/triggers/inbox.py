@@ -53,12 +53,6 @@ class InboxWatcher:
                 source="inbox",
                 payload={"file": file_path, "content": content},
             )
-            self.store.conn.execute(
-                """INSERT INTO events (source, payload, received_at, consumed_by_instance)
-                   VALUES (?, ?, ?, ?)""",
-                (event.source, json.dumps(event.payload),
-                 event.received_at.isoformat(), event.consumed_by_instance),
-            )
-            self.store.conn.commit()
+            self.store.create_event(event)
         except Exception:
             logging.exception("Failed to process inbox file: %s", file_path)

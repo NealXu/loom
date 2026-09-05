@@ -18,13 +18,7 @@ def process_hook(store, payload: dict) -> Event:
         payload=payload,
         consumed_by_instance=payload.get("session_id", ""),
     )
-    store.conn.execute(
-        """INSERT INTO events (source, payload, received_at, consumed_by_instance)
-           VALUES (?, ?, ?, ?)""",
-        (event.source, json.dumps(event.payload),
-         event.received_at.isoformat(), event.consumed_by_instance),
-    )
-    store.conn.commit()
+    store.create_event(event)
     return event
 
 

@@ -182,11 +182,7 @@ def run(template: str, db: str, params: str, runner_name: str, config_path: str,
         for n in nodes:
             store.create_node(n)
         for e in edges:
-            store.conn.execute(
-                "INSERT INTO edges (instance_id, from_node, to_node, type, condition) VALUES (?, ?, ?, ?, ?)",
-                (e.instance_id, e.from_node, e.to_node, e.type, e.condition or "")
-            )
-        store.conn.commit()
+            store.create_edge(e)
 
         if bg:
             # Background mode: just create instance, daemon will pick it up

@@ -82,11 +82,7 @@ def dispatch_events(store: Store, templates_dir: str) -> list[str]:
             for n in nodes:
                 store.create_node(n)
             for e in edges:
-                store.conn.execute(
-                    "INSERT INTO edges (instance_id, from_node, to_node, type, condition) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    (e.instance_id, e.from_node, e.to_node, e.type, e.condition or ""))
-            store.conn.commit()
+                store.create_edge(e)
         except Exception as e:
             logger.warning(f"dispatch of event {row['id']} failed: {e}")
             _mark(row["id"], f"error:{type(e).__name__}")

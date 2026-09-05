@@ -67,16 +67,5 @@ def record_transition(store, entity_kind: str, entity_id: str,
         },
         consumed_by_instance=entity_id,
     )
-    store.conn.execute(
-        """INSERT INTO events (source, payload, received_at, consumed_by_instance)
-           VALUES (?, ?, ?, ?)""",
-        (event.source, _payload_json(event.payload), event.received_at.isoformat(),
-         event.consumed_by_instance),
-    )
-    store.conn.commit()
+    store.create_event(event)
     return True
-
-
-def _payload_json(payload: dict) -> str:
-    import json
-    return json.dumps(payload)
