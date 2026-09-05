@@ -1,0 +1,29 @@
+id: feature-loop
+version: 1
+trigger: [inbox, cli]
+provenance: manual
+params:
+  project_path: {type: string, required: true}
+  feature_description: {type: string, required: true}
+nodes:
+  - id: implement
+    kind: coding
+    tier: heavy
+    spec: "Implement the following feature on a new branch: {{feature_description}}"
+    depends_on: []
+  - id: test
+    kind: analysis
+    tier: tooling
+    spec: "Run the test suite and report results for the feature implementation"
+    depends_on: [implement]
+  - id: review
+    kind: review
+    tier: heavy
+    spec: "Review the implemented feature code for quality, correctness, and adherence to the feature description"
+    depends_on: [test]
+  - id: merge
+    kind: deploy
+    tier: critical
+    gate: approve
+    spec: "Merge the feature branch to main"
+    depends_on: [review]
