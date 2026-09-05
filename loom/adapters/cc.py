@@ -14,3 +14,5 @@ class CCAdapter(SubprocessAdapter):
     name = "cc"
     default_binary = "claude"
     print_flag = "-p"
+    parse_cost = True
+    extra_args = ["--output-format", "json"]

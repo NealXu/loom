@@ -39,6 +39,8 @@ class SubprocessAdapter(RunnerAdapter):
     name = "subprocess"
     default_binary = ""
     print_flag = "-p"
+    parse_cost = False          # subclasses set True to extract token/cost from JSON stdout
+    extra_args: list[str] = []  # extra CLI args appended after the spec (e.g. output-format)
 
     def __init__(
         self,
@@ -57,6 +59,7 @@ class SubprocessAdapter(RunnerAdapter):
             cmd = [*self._binary, self._print_flag, node.spec]
         else:
             cmd = [self._binary, self._print_flag, node.spec]
+        cmd += list(self.extra_args)
 
         work_dir = self._cwd or node.project_path or None
 
@@ -80,10 +83,18 @@ class SubprocessAdapter(RunnerAdapter):
             )
 
         returncode = proc.returncode if proc.returncode is not None else 0
+        stdout_text = stdout_bytes.decode(errors="replace")
+        cost_tokens, cost_usd = (0, 0.0)
+        if self.parse_cost and returncode == 0:
+            from loom.adapters.cost_parsing import extract_cost
+            cost_tokens, cost_usd = extract_cost(stdout_text)
+
         return Result(
             success=(returncode == 0),
-            output=stdout_bytes.decode(errors="replace"),
+            output=stdout_text,
             error=stderr_bytes.decode(errors="replace"),
             exit_code=returncode,
             artifacts=[],
+            cost_tokens=cost_tokens,
+            cost_usd=cost_usd,
         )
