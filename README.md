@@ -5,11 +5,16 @@ A two-layer graph system for automating daily work. Loom combines a knowledge gr
 ## Key Features
 
 - **DAG scheduling** with topological ordering and dependency resolution
-- **Multiple runner adapters** for different AI agent CLIs (Claude Code, Pi, Codex, DSH)
-- **Gate approvals** requiring human sign-off for high-risk operations (merge, deploy, publish, delete)
-- **Template-driven workflows** defined in YAML with parameterized specs
-- **Multiple triggers** including HTTP hooks, cron schedules, inbox file watchers, and CLI
-- **Web UI** for read-only graph visualization and instance inspection
+- **Persistent daemon** (`loom serve`) with async tick loop; survives restarts with crash recovery and persisted schedule state
+- **Event-driven dispatch**: triggers (hooks/inbox/cron) → template matching → automatic instance creation
+- **Tier-based runner routing** with fallback chains and binary-missing degradation (`--runner auto`)
+- **Cost tracking**: real token/cost parsed from JSON/JSONL agent output (claude, codex, pi); hard budget enforcement at `node.budget_tokens`
+- **Interactive gate approvals** for high-risk operations via CLI (`loom gate approve/reject`) and Web panel
+- **Timeout protection**: hung agent CLI processes are killed after configurable timeout
+- **Vault artifact persistence**: successful node outputs written to Vault markdown + registered as Artifacts
+- **Template-driven workflows** defined in YAML with parameterized specs (5 built-in + `loom evolve` LLM discovery)
+- **Multiple triggers**: HTTP hooks, cron scheduler, inbox file watchers, CLI, and `POST /api/run`
+- **Web UI** with FastAPI + SSE real-time event stream, pagination, and gate approval panel
 - **Full audit trail** with event logging for every state transition
 
 ## Quick Start
@@ -18,34 +23,54 @@ A two-layer graph system for automating daily work. Loom combines a knowledge gr
 
 - Python 3.12+
 - Git
+- Agent CLIs: `claude`, `codex`, `pi`, `dsh` (any or all, optional)
 
 ### Installation
 
 ```bash
 git clone <repository-url>
 cd loom
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 ### Basic Usage
 
-Run a template from the CLI:
+**Start the daemon** (recommended — enables triggers, gates, SSE, scheduled jobs):
 
 ```bash
-# Run the repo-analysis template
-loom run repo-analysis --params '{"repo_url": "https://github.com/user/repo"}'
+loom serve --runner auto --config loom.toml --templates loom/templates
+# Daemon runs on port 8000; Web UI at http://127.0.0.1:8000
+# Triggers write events → daemon dispatches → instances execute → gates pause → approve via CLI/Web
+```
 
-# Run with a specific runner (cc = Claude Code, pi = Pi CLI, codex, dsh)
-loom run feature-loop --runner cc --params '{"branch": "feat/new-thing", "spec": "Add login page"}'
+**Run a template synchronously**:
 
-# List all instances
+```bash
+# Run repo-analysis with Claude Code
+loom run repo-analysis --runner cc --params '{"project_path": "."}'
+
+# Run feature-loop in background (daemon executes)
+loom run feature-loop --runner codex --params '{"branch": "feat/x"}' --bg
+
+# List instances, check status, view history
 loom list
-
-# Check status of a specific instance
 loom status <instance_id>
+loom history --limit 10
+```
 
-# View system statistics
-loom stats
+**Gate approval** (when a node with `gate: approve` pauses):
+
+```bash
+loom gate list                           # see pending gates
+loom gate approve <node_id> --reason LGTM
+loom gate reject <node_id> --reason "Not ready"
+```
+
+**Morning digest & evolution**:
+
+```bash
+loom digest                             # rollup with cost red line from loom.toml
+loom evolve --runner cc --out loom/templates/discovered
 ```
 
 ## Architecture Overview
@@ -59,14 +84,14 @@ Loom operates on two complementary graph layers:
 
 ### Runners
 
-Four adapter types execute node specs via subprocess:
+Four adapter types execute node specs via subprocess with timeout and cost parsing:
 
-| Runner | CLI | Description |
-|--------|-----|-------------|
-| `cc` | `claude -p <spec>` | Claude Code CLI |
-| `pi` | `pi -p <spec>` | Pi CLI |
-| `codex` | `codex -p <spec>` | Codex CLI |
-| `dsh` | `dsh -p <spec>` | DSH CLI |
+| Runner | Command | Cost Parsing |
+|--------|---------|--------------|
+| `cc` | `claude -p <spec> --output-format json` | JSON output, `usage` + `total_cost_usd` |
+| `pi` | `pi --mode json -p <spec>` | JSON output, `usage` + `cost_usd` |
+| `codex` | `codex exec --json <spec>` | JSONL events, `token_count` cumulative |
+| `dsh` | `dsh -p <spec>` | No stable JSON surface (documented) |
 
 A `fake` runner is also available for testing.
 
@@ -87,15 +112,20 @@ Instances aggregate node states. All transitions are recorded in the events tabl
 
 ### Gate Approval Flow
 
-Nodes with `gate: approve` pause execution until a human approves or rejects via:
+Nodes with `gate: approve` pause execution until a human approves or rejects via CLI or Web:
 
 ```bash
-# Approve a gated node
-loom status <instance_id>   # identify the waiting gate
-# (gate decisions are recorded via the audit trail)
+# See pending gates
+loom gate list
+
+# Approve with reason
+loom gate approve <node_id> --reason "LGTM"
+
+# Reject with reason
+loom gate reject <node_id> --reason "Not ready"
 ```
 
-High-risk node kinds (`deploy`, `review`) automatically require gates.
+High-risk node kinds (`deploy`, `review`) automatically require gates. When a gate pauses an instance, the daemon stops advancing it until approval. In sync mode (`loom run` without `--bg`), the CLI prints a message and exits; run `loom serve` or `loom gate approve` to resume.
 
 ### Tier-Based Routing
 
@@ -110,7 +140,7 @@ Nodes are assigned tiers that influence scheduling priority:
 
 | Command | Description |
 |---------|-------------|
-| `loom run <template>` | Instantiate a template and execute the DAG |
+| `loom run <template>` | Instantiate a template and execute the DAG (sync or `--bg` daemon) |
 | `loom list` | List all instances |
 | `loom status <id>` | Show instance detail (nodes, status, cost) |
 | `loom stats` | System-wide statistics (instances, nodes, events, gates) |
@@ -118,6 +148,10 @@ Nodes are assigned tiers that influence scheduling priority:
 | `loom cost [id]` | Cost breakdown (aggregate, per-instance, or per-template) |
 | `loom history` | Instance execution history |
 | `loom audit [id]` | Audit trail (gate decisions and state transitions) |
+| `loom serve` | Start daemon + web server (triggers, gates, SSE, scheduled jobs) |
+| `loom gate list/approve/reject` | Interactive gate approval commands |
+| `loom digest` | Render morning digest (instance rollup + cost red line) |
+| `loom evolve` | Discover recurring patterns and write candidate templates (LLM channel) |
 
 ### Run Options
 
@@ -131,21 +165,33 @@ loom run <template> [OPTIONS]
 
 ## Web UI
 
-Start the web server with uvicorn:
+Start the daemon with web server:
 
 ```bash
-uvicorn loom.web.app:create_app --factory --host 0.0.0.0 --port 8000
+loom serve --runner auto --config loom.toml
+# Web UI at http://127.0.0.1:8000
 ```
 
-The web UI provides a read-only REST API:
+The Web UI provides:
+
+**REST API** (read + write):
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/instances` | GET | List all instances with summary data |
+| `/api/instances` | GET | List instances with pagination (`?limit=&offset=`) |
 | `/api/instances/{id}` | GET | Instance detail with nodes and edges |
 | `/api/graph` | GET | Full graph (instances, nodes, edges) |
+| `/api/gates` | GET | List pending gate approvals |
+| `/api/gates/{node_id}/approve` | POST | Approve a gated node |
+| `/api/gates/{node_id}/reject` | POST | Reject a gated node |
+| `/api/run` | POST | Trigger instance creation (daemon executes) |
+| `/api/events/stream` | GET | SSE real-time event stream |
 
-The static HTML frontend at `loom/web/static/index.html` visualizes instance and graph data.
+**Frontend** at `loom/web/static/index.html`:
+- Instance list with cost breakdown
+- Pending gates panel with approve/reject buttons
+- Real-time event stream (SSE)
+- Graph visualization (instances, nodes, edges)
 
 ## Templates
 
@@ -156,8 +202,12 @@ Templates are YAML files that define reusable workflows. Each template specifies
 | Template | Triggers | Description |
 |----------|----------|-------------|
 | `handoff-refresh` | inbox, cron | Scans a project and rewrites `handoff.md` |
-| `feature-loop` | inbox, cli | Implements a feature on a branch with testing and review |
+| `feature-loop` | inbox, cli | Implements a feature on a branch with testing and review (gate on merge) |
 | `repo-analysis` | inbox, cron | Comprehensive repository structure and code analysis |
+| `content-pipeline` | inbox, cli | Research → draft → polish → publish (gate on publish) |
+| `ops-deploy` | cli | Preflight → build → deploy (gate) → verify |
+
+Run `loom evolve --runner cc` to discover additional templates from successful instance clusters.
 
 ### Template Structure
 
@@ -201,7 +251,7 @@ nodes:
 ### Running Tests
 
 ```bash
-# Run all 106 tests
+# Run all 201 tests
 pytest
 
 # Run with verbose output
@@ -215,7 +265,8 @@ pytest tests/test_scheduler.py
 
 ```
 loom/
-  cli.py              # Click-based CLI entry point
+  cli.py              # Click-based CLI entry point (13 commands)
+  daemon.py           # Persistent daemon with async tick loop
   core/
     models.py         # Dataclasses: Node, Instance, Edge, Artifact, Event, Template
     store.py          # SQLite CRUD operations (WAL mode)
@@ -223,35 +274,38 @@ loom/
     scheduler.py      # DAG scheduler (Kahn's algorithm)
     loader.py         # YAML template parser and instantiator
     gate.py           # Gate decision flow
+    engine.py         # step_instance orchestration + budget check + artifact writing
+    router.py         # Tier-based runner routing with fallback chains
+    dispatcher.py     # Event → template matching and instance creation
+    schedule.py       # Cron scheduler with persistent state
   adapters/
     base.py           # Abstract RunnerAdapter interface
+    subprocess_base.py # SubprocessAdapter with timeout + build_command hook
+    cost_parsing.py   # JSON/JSONL cost extraction (tokens + USD)
     fake.py           # FakeRunner for testing
-    cc.py             # Claude Code adapter
-    pi.py             # Pi CLI adapter
-    codex.py          # Codex adapter
-    dsh.py            # DSH adapter
+    cc.py             # Claude Code adapter (parse_cost enabled)
+    pi.py             # Pi CLI adapter (parse_cost enabled, --mode json)
+    codex.py          # Codex adapter (codex exec --json, parse_cost enabled)
+    dsh.py            # DSH adapter (no stable JSON surface)
   triggers/
     hooks.py          # HTTP webhook server for CC hook events
     cron.py           # Morning digest generator
     inbox.py          # File watcher for inbox directory
   evolver/
-    evolve.py         # Template discovery and evolution
+    evolve.py         # LLM-driven template discovery (evolve + loom evolve command)
   web/
-    app.py            # FastAPI REST API
+    app.py            # FastAPI REST API (instances, gates, run, SSE stream)
+    sse.py            # Server-Sent Events event stream
     static/
-      index.html      # Web UI frontend
+      index.html      # Web UI frontend (gates panel, SSE, graph viz)
   templates/
     handoff-refresh.yaml
     feature-loop.yaml
     repo-analysis.yaml
+    content-pipeline.yaml
+    ops-deploy.yaml
 tests/
-  test_models.py      test_store.py       test_state.py
-  test_scheduler.py   test_loader.py      test_adapters.py
-  test_templates.py   test_cli.py         test_gate.py
-  test_cron.py        test_inbox.py       test_triggers.py
-  test_evolver.py     test_web.py         test_integration.py
-  test_smoke.py       test_cost_history.py test_monitoring.py
-  test_frontend.py
+  30 test files       # 201 tests total
 ```
 
 ### Dependencies
@@ -264,6 +318,11 @@ tests/
 | `uvicorn>=0.32` | ASGI server |
 | `aiohttp>=3.10` | Async HTTP for webhooks |
 | `watchdog>=5.0` | File system monitoring |
+| `pytest>=8.0` | Testing framework |
+| `pytest-asyncio>=0.24` | Async test support |
+| `httpx>=0.27` | HTTP client for testing |
+
+Dev dependencies installed via `pip install -e ".[dev]"`.
 
 ## License
 
