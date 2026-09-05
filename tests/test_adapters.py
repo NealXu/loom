@@ -166,3 +166,48 @@ class TestCodexAdapter:
 
         adapter = CodexAdapter()
         assert adapter.name == "codex"
+
+
+# ---------------------------------------------------------------------------
+# DshAdapter tests
+# ---------------------------------------------------------------------------
+
+# Stubs: Python one-liners invoked via [sys.executable, -c, code, ...]
+_DSH_ECHO_CODE = "import sys; i=sys.argv.index('-p'); print(sys.argv[i+1])"
+_DSH_FAIL_CODE = "import sys; sys.exit(42)"
+
+
+class TestDshAdapter:
+    """Tests for the DSH runner adapter."""
+
+    def test_dsh_adapter_returns_success_output(self, tmp_path):
+        """DshAdapter with echo stub returns success=True and node.spec in output."""
+        from loom.adapters.dsh import DshAdapter
+
+        adapter = DshAdapter(binary=[sys.executable, "-c", _DSH_ECHO_CODE], cwd=str(tmp_path))
+        node = Node(id="n1", instance_id="i1", template_id="t1", spec="hello dsh", project_path=str(tmp_path))
+
+        result = asyncio.run(adapter.run(node))
+
+        assert result.success is True
+        assert "hello dsh" in result.output
+        assert result.exit_code == 0
+
+    def test_dsh_adapter_maps_exit_code(self, tmp_path):
+        """DshAdapter with failing stub returns success=False and correct exit_code."""
+        from loom.adapters.dsh import DshAdapter
+
+        adapter = DshAdapter(binary=[sys.executable, "-c", _DSH_FAIL_CODE], cwd=str(tmp_path))
+        node = Node(id="n2", instance_id="i1", template_id="t1", spec="will fail", project_path=str(tmp_path))
+
+        result = asyncio.run(adapter.run(node))
+
+        assert result.success is False
+        assert result.exit_code == 42
+
+    def test_dsh_adapter_defaults_name(self):
+        """DshAdapter().name == 'dsh'."""
+        from loom.adapters.dsh import DshAdapter
+
+        adapter = DshAdapter()
+        assert adapter.name == "dsh"
