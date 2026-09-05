@@ -125,3 +125,43 @@ def test_get_graph():
             assert len(data["instances"]) == 2
             assert len(data["nodes"]) == 2
             assert len(data["edges"]) == 1
+
+
+# ── P2-G: error paths + concurrency ──
+
+
+def test_corrupted_params_json_survives():
+    """An instance row with malformed params JSON must not 500 the detail endpoint."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        with Store(db_path) as store:
+            _seed_instance(store, "inst1", "Bad Params")
+            # Overwrite params with invalid JSON directly.
+            store.conn.execute(
+                "UPDATE instances SET params = ? WHERE id = ?", ("{not json", "inst1"))
+            store.conn.commit()
+
+            from loom.web.app import create_app
+            app = create_app(store)
+            client = TestClient(app)
+            resp = client.get("/api/instances/inst1")
+            assert resp.status_code == 200
+            assert resp.json()["instance"]["params"] == {}  # degraded to empty
+
+
+def test_wal_concurrent_reads():
+    """WAL mode allows a reader connection while a writer holds a txn."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "test.db")
+        with Store(db_path) as writer:
+            _seed_instance(writer, "inst1", "W")
+            reader = Store(db_path)  # second connection
+            try:
+                # Begin a write txn without committing.
+                writer.conn.execute(
+                    "UPDATE instances SET title = ? WHERE id = ?", ("changed", "inst1"))
+                # Reader still sees committed state (old title), no error.
+                rows = reader.conn.execute("SELECT title FROM instances").fetchall()
+                assert len(rows) == 1
+            finally:
+                reader.close()

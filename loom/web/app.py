@@ -1,7 +1,30 @@
 """FastAPI web backend for Loom — read-only REST API over the graph store."""
 
 import json
+from typing import Optional
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+
+class GateSummary(BaseModel):
+    """A node currently awaiting gate approval."""
+    id: str
+    instance_id: str
+    title: str = ""
+    kind: str = ""
+    gate: str = ""
+    status: str
+
+
+class GateDecisionResult(BaseModel):
+    """Result of an approve/reject decision."""
+    approved: bool
+    node_id: str
+
+
+class GateRequestBody(BaseModel):
+    """Optional reason for an approve/reject call."""
+    reason: str = ""
 
 
 def create_app(store) -> FastAPI:
@@ -84,15 +107,15 @@ def create_app(store) -> FastAPI:
     # P0-B: Gate API endpoints
     # -----------------------------------------------------------------------
 
-    @app.get("/api/gates")
-    def get_gates(instance_id: str = None):
+    @app.get("/api/gates", response_model=list[GateSummary])
+    def get_gates(instance_id: Optional[str] = None):
         """List pending gate approvals."""
         from loom.core.gate import get_pending_gates
         gates = get_pending_gates(store, instance_id)
         return gates
 
-    @app.post("/api/gates/{node_id}/approve")
-    def approve_gate(node_id: str, body: dict = None):
+    @app.post("/api/gates/{node_id}/approve", response_model=GateDecisionResult)
+    def approve_gate(node_id: str, body: Optional[GateRequestBody] = None):
         """Approve a gated node."""
         from loom.core.gate import GateDecision, record_gate_decision
 
@@ -100,21 +123,20 @@ def create_app(store) -> FastAPI:
         if node is None:
             raise HTTPException(status_code=404, detail="Node not found")
 
-        body = body or {}
         decision = GateDecision(
             node_id=node_id,
             instance_id=node.instance_id,
             approved=True,
-            reason=body.get("reason", ""),
+            reason=(body.reason if body else ""),
         )
         ok = record_gate_decision(store, decision)
         if not ok:
             raise HTTPException(status_code=400, detail="Invalid gate transition")
 
-        return {"approved": True, "node_id": node_id}
+        return GateDecisionResult(approved=True, node_id=node_id)
 
-    @app.post("/api/gates/{node_id}/reject")
-    def reject_gate(node_id: str, body: dict = None):
+    @app.post("/api/gates/{node_id}/reject", response_model=GateDecisionResult)
+    def reject_gate(node_id: str, body: Optional[GateRequestBody] = None):
         """Reject a gated node."""
         from loom.core.gate import GateDecision, record_gate_decision
 
@@ -122,18 +144,17 @@ def create_app(store) -> FastAPI:
         if node is None:
             raise HTTPException(status_code=404, detail="Node not found")
 
-        body = body or {}
         decision = GateDecision(
             node_id=node_id,
             instance_id=node.instance_id,
             approved=False,
-            reason=body.get("reason", ""),
+            reason=(body.reason if body else ""),
         )
         ok = record_gate_decision(store, decision)
         if not ok:
             raise HTTPException(status_code=400, detail="Invalid gate transition")
 
-        return {"approved": False, "node_id": node_id}
+        return GateDecisionResult(approved=False, node_id=node_id)
 
     return app
 

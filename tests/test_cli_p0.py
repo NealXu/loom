@@ -75,6 +75,23 @@ def test_gate_reject():
             assert node.status == "cancelled"
 
 
+def test_digest_command():
+    """loom digest renders a rollup honoring the loom.toml red_line."""
+    runner = CliRunner()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        db_path = os.path.join(tmpdir, "t.db")
+        cfg_path = os.path.join(tmpdir, "loom.toml")
+        with open(cfg_path, "w") as f:
+            f.write("[budget]\nred_line_usd = 2.0\n")
+        with Store(db_path) as store:
+            store.create_instance(Instance(id="i1", template_id="t", title="x",
+                                           status="succeeded", cost_usd=3.0))
+        result = runner.invoke(main, ["digest", "--db", db_path, "--config", cfg_path])
+        assert result.exit_code == 0
+        # cost_usd 3.0 >= configured threshold 2.0 -> flagged over budget
+        assert "OVER BUDGET" in result.output.upper()
+
+
 def test_run_bg_mode():
     """loom run --bg should create instance without executing."""
     runner = CliRunner()

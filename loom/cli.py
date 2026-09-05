@@ -549,6 +549,23 @@ def status(instance_id: str, db: str) -> None:
         click.echo(f"  Node {nr['id']} | {nr['title']} | kind={nr['kind']} | status={nr['status']}")
 
 
+@main.command()
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+@click.option("--config", "config_path", default="loom.toml", help="Read [budget] red_line_usd.")
+@click.option("--since", default=None, help="ISO datetime; only instances created after it.")
+def digest(db: str, config_path: str, since: str) -> None:
+    """Render the morning digest (instance rollup + cost red line)."""
+    from loom.core.router import load_config
+    from loom.triggers.cron import build_digest, render_digest
+
+    cfg = load_config(config_path)
+    threshold = float(cfg.get("budget", {}).get("red_line_usd", 5.0))
+
+    with Store(db) as store:
+        d = build_digest(store, since=since, threshold=threshold)
+    click.echo(render_digest(d))
+
+
 # ---------------------------------------------------------------------------
 # P0-B: Gate commands
 # ---------------------------------------------------------------------------
