@@ -1,4 +1,5 @@
 """Tests for the Click CLI (loom/cli.py)."""
+import asyncio
 import json
 import os
 import tempfile
@@ -6,7 +7,9 @@ import tempfile
 import pytest
 from click.testing import CliRunner
 
-from loom.cli import main
+from loom.cli import _run_instance, main
+from loom.adapters.base import Result
+from loom.core.loader import instantiate, load_template
 from loom.core.models import Instance, Node
 from loom.core.store import Store
 
@@ -87,3 +90,51 @@ def test_cli_run_creates_and_executes(runner, tmp_path):
             "SELECT * FROM nodes WHERE status = 'succeeded'"
         ).fetchall()
         assert len(node_rows) == 3
+
+
+class _FailingRunner:
+    """Stub runner that always returns failure -- used to catch infinite loops."""
+    name = "failing"
+
+    async def run(self, node):
+        return Result(success=False, error="simulated failure")
+
+
+def test_run_instance_terminates_on_node_failure(tmp_path):
+    """Regression: _run_instance must not infinite-loop when a node fails.
+
+    Without the fail-fast break, the failed node is never added to `completed`,
+    so ready_nodes returns it forever.  This test would hang without the fix.
+    """
+    db_path = str(tmp_path / "fail.db")
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "loom", "templates", "handoff-refresh.yaml"
+    )
+    tpl = load_template(template_path)
+    instance, nodes, edges = instantiate(tpl, {"project_path": str(tmp_path)})
+
+    with Store(db_path) as store:
+        store.create_instance(instance)
+        for n in nodes:
+            store.create_node(n)
+
+        # This must return promptly; a 5-second safety net prevents a true hang.
+        try:
+            asyncio.run(
+                asyncio.wait_for(
+                    _run_instance(store, instance, nodes, edges, _FailingRunner()),
+                    timeout=5.0,
+                )
+            )
+        except asyncio.TimeoutError:
+            pytest.fail("_run_instance hung -- infinite loop on node failure")
+
+        # Instance should be marked failed.
+        inst = store.get_instance(instance.id)
+        assert inst.status == "failed"
+
+        # Exactly one node should be failed (the first/root one); others remain pending.
+        failed_nodes = store.conn.execute(
+            "SELECT * FROM nodes WHERE status = 'failed'"
+        ).fetchall()
+        assert len(failed_nodes) >= 1

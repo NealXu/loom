@@ -100,6 +100,9 @@ async def _run_instance(store, instance, nodes, edges, runner) -> None:
                 )
                 store.conn.commit()
                 failed = True
+                break  # fail-fast: stop scheduling; dependents will never become ready.
+        if failed:
+            break
 
     # Finalise instance status.
     final_status = "failed" if failed else "succeeded"
