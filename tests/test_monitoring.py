@@ -168,4 +168,4 @@ def test_cost_missing_instance(runner, tmp_db):
     """cost <missing_id> should error with a clear message."""
     result = runner.invoke(main, ["cost", "missing", "--db", tmp_db])
     assert result.exit_code != 0
-    assert "not found" in result.output.lower()
+    assert "no instance or template found" in result.output.lower()

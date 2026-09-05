@@ -186,22 +186,44 @@ def list_cmd(db: str) -> None:
 
 
 @main.command()
-@click.argument("instance_id", required=False)
+@click.argument("entity_id", required=False)
 @click.option("--db", default="loom.db", help="Path to the SQLite store.")
-def cost(instance_id: str | None, db: str) -> None:
+def cost(entity_id: str | None, db: str) -> None:
     """Display cost breakdown.
 
-    If INSTANCE_ID is given, show cost for that instance only.
-    Otherwise, show aggregate costs across all instances.
+    With no arguments, show aggregate costs across all instances.
+    If ENTITY_ID matches an instance, show cost for that instance.
+    Otherwise, treat ENTITY_ID as a template_id and show costs for all
+    instances of that template.
     """
     with Store(db) as store:
-        if instance_id is not None:
-            inst = store.get_instance(instance_id)
-            if inst is None:
-                raise click.UsageError(f"Instance not found: {instance_id}")
-            click.echo(f"Instance {inst.id}")
-            click.echo(f"  cost_tokens: {inst.cost_tokens}")
-            click.echo(f"  cost_usd:    ${inst.cost_usd:.6f}")
+        if entity_id is not None:
+            # Try as instance first.
+            inst = store.get_instance(entity_id)
+            if inst is not None:
+                click.echo(f"Instance {inst.id}")
+                click.echo(f"  cost_tokens: {inst.cost_tokens}")
+                click.echo(f"  cost_usd:    ${inst.cost_usd:.6f}")
+                return
+
+            # Try as template_id.
+            row = store.conn.execute(
+                "SELECT COUNT(*) AS cnt, "
+                "COALESCE(SUM(cost_tokens), 0) AS total_tokens, "
+                "COALESCE(SUM(cost_usd), 0.0) AS total_usd "
+                "FROM instances WHERE template_id = ?",
+                (entity_id,),
+            ).fetchone()
+            if row["cnt"] == 0:
+                raise click.UsageError(
+                    f"No instance or template found: {entity_id}"
+                )
+            avg_usd = row["total_usd"] / row["cnt"] if row["cnt"] else 0.0
+            click.echo(f"Template {entity_id}")
+            click.echo(f"  instances:     {row['cnt']}")
+            click.echo(f"  total_tokens:  {row['total_tokens']}")
+            click.echo(f"  total_usd:     ${row['total_usd']:.6f}")
+            click.echo(f"  avg_usd:       ${avg_usd:.6f}")
         else:
             row = store.conn.execute(
                 "SELECT COUNT(*) AS cnt, "
@@ -209,10 +231,143 @@ def cost(instance_id: str | None, db: str) -> None:
                 "COALESCE(SUM(cost_usd), 0.0) AS total_usd "
                 "FROM instances"
             ).fetchone()
+            avg_usd = row["total_usd"] / row["cnt"] if row["cnt"] else 0.0
             click.echo("Aggregate costs")
             click.echo(f"  instances:    {row['cnt']}")
             click.echo(f"  total_tokens: {row['total_tokens']}")
             click.echo(f"  total_usd:    ${row['total_usd']:.6f}")
+            click.echo(f"  avg_usd:      ${avg_usd:.6f}")
+
+
+@main.command()
+@click.option("--template", "template_id", default=None, help="Filter by template_id.")
+@click.option("--status", "status_filter", default=None, help="Filter by status.")
+@click.option("--limit", default=20, type=int, help="Max rows to show (default 20).")
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def history(template_id: str | None, status_filter: str | None, limit: int, db: str) -> None:
+    """Show instance execution history.
+
+    Displays recent instances, most recent first.  Use --template or --status
+    to filter.
+    """
+    query = "SELECT id, template_id, status, cost_usd, created_at, finished_at FROM instances"
+    clauses: list[str] = []
+    params: list[object] = []
+
+    if template_id is not None:
+        clauses.append("template_id = ?")
+        params.append(template_id)
+    if status_filter is not None:
+        clauses.append("status = ?")
+        params.append(status_filter)
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+
+    with Store(db) as store:
+        rows = store.conn.execute(query, params).fetchall()
+
+    if not rows:
+        click.echo("No instances found.")
+        return
+
+    for row in rows:
+        finished = row["finished_at"] or "-"
+        click.echo(
+            f"{row['id']}  template={row['template_id']}  "
+            f"status={row['status']}  cost_usd=${row['cost_usd']:.6f}  "
+            f"created={row['created_at']}  finished={finished}"
+        )
+
+
+@main.command()
+@click.argument("instance_id", required=False)
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def audit(instance_id: str | None, db: str) -> None:
+    """Show audit trail (gate decisions and state transitions).
+
+    With no arguments, show all gate decisions (most recent first).
+    If INSTANCE_ID is given, show gate decisions and state transitions
+    for that specific instance.
+    """
+    with Store(db) as store:
+        if instance_id is not None:
+            # Verify instance exists.
+            inst = store.get_instance(instance_id)
+            if inst is None:
+                raise click.UsageError(f"Instance not found: {instance_id}")
+
+            # Gate decisions for this instance.
+            gates = store.conn.execute(
+                "SELECT node_id, approved, approver, reason, decided_at "
+                "FROM gate_decisions WHERE instance_id = ? "
+                "ORDER BY decided_at DESC",
+                (instance_id,),
+            ).fetchall()
+
+            # State transitions for this instance.
+            transitions = store.conn.execute(
+                "SELECT id, payload, received_at FROM events "
+                "WHERE source = 'state_transition' "
+                "AND consumed_by_instance = ? "
+                "ORDER BY received_at DESC",
+                (instance_id,),
+            ).fetchall()
+
+            if not gates and not transitions:
+                click.echo(f"No audit events for instance {instance_id}.")
+                return
+
+            click.echo(f"Audit trail for instance {instance_id}")
+            click.echo("")
+
+            if gates:
+                click.echo("Gate decisions:")
+                for g in gates:
+                    approved_str = (
+                        "approved" if g["approved"] else
+                        "denied" if g["approved"] is not None else "pending"
+                    )
+                    click.echo(
+                        f"  {g['decided_at']}  gate_decision  "
+                        f"node={g['node_id']}  {approved_str}  "
+                        f"by={g['approver'] or '-'}  reason={g['reason'] or '-'}"
+                    )
+
+            if transitions:
+                click.echo("State transitions:")
+                import json as _json
+                for t in transitions:
+                    payload = _json.loads(t["payload"]) if t["payload"] else {}
+                    click.echo(
+                        f"  {t['received_at']}  state_transition  "
+                        f"{payload.get('entity_kind', '?')}={payload.get('entity_id', '?')}  "
+                        f"{payload.get('from_status', '?')}->{payload.get('to_status', '?')}"
+                    )
+        else:
+            # All gate decisions, most recent first.
+            gates = store.conn.execute(
+                "SELECT node_id, instance_id, approved, approver, reason, decided_at "
+                "FROM gate_decisions ORDER BY decided_at DESC"
+            ).fetchall()
+
+            if not gates:
+                click.echo("No gate decisions recorded.")
+                return
+
+            click.echo("Gate decisions (most recent first)")
+            for g in gates:
+                approved_str = (
+                    "approved" if g["approved"] else
+                    "denied" if g["approved"] is not None else "pending"
+                )
+                click.echo(
+                    f"  {g['decided_at']}  gate_decision  "
+                    f"instance={g['instance_id']}  node={g['node_id']}  "
+                    f"{approved_str}  by={g['approver'] or '-'}  "
+                    f"reason={g['reason'] or '-'}"
+                )
 
 
 @main.command()
