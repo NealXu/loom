@@ -20,19 +20,31 @@ logger = logging.getLogger(__name__)
 class LoomDaemon:
     """Async daemon that orchestrates instance execution."""
 
-    def __init__(self, store, runner, tick_interval: float = 2.0):
+    def __init__(self, store, runner, tick_interval: float = 2.0,
+                 templates_dir: str | None = None):
         self.store = store
         self.runner = runner
         self.tick_interval = tick_interval
+        self.templates_dir = templates_dir
         self.running = False
         self._initial_recovery_done = False
 
     async def tick(self):
-        """Single tick: recover crashes, process active instances."""
+        """Single tick: recover crashes, dispatch events, process instances."""
         # Crash recovery: only on first tick (daemon startup)
         if not self._initial_recovery_done:
             await self._crash_recovery()
             self._initial_recovery_done = True
+
+        # P2-K: convert trigger events into new instances
+        if self.templates_dir is not None:
+            from loom.core.dispatcher import dispatch_events
+            try:
+                created = dispatch_events(self.store, self.templates_dir)
+                if created:
+                    logger.info(f"dispatched {len(created)} new instance(s)")
+            except Exception as e:
+                logger.error(f"event dispatch failed: {e}")
 
         # Find all active instances
         pending = self.store.list_instances_by_status("pending")

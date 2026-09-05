@@ -94,6 +94,12 @@ class Store:
                 decided_at TEXT
             );
         """)
+        # Idempotent migration (P2-K): events.dispatched marker column.
+        try:
+            self.conn.execute(
+                "ALTER TABLE events ADD COLUMN dispatched TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         self.conn.commit()
 
     def create_node(self, node: Node):

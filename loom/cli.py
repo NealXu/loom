@@ -646,8 +646,11 @@ def reject(node_id: str, reason: str, db: str) -> None:
 @click.option("--port", default=8000, type=int, help="Port to bind.")
 @click.option("--runner", "runner_name", default="fake", help="Runner adapter: fake|cc|pi|codex|dsh|auto")
 @click.option("--config", "config_path", default="loom.toml", help="Routing config for --runner auto.")
+@click.option("--templates", "templates_dir", default="loom/templates",
+              help="Templates dir for event->template dispatch (empty string disables).")
 @click.option("--tick", default=2.0, type=float, help="Daemon tick interval (seconds).")
-def serve(db: str, host: str, port: int, runner_name: str, config_path: str, tick: float) -> None:
+def serve(db: str, host: str, port: int, runner_name: str, config_path: str,
+          templates_dir: str, tick: float) -> None:
     """Start the Loom daemon and web server."""
     import uvicorn
     from loom.web.app import create_app
@@ -655,7 +658,8 @@ def serve(db: str, host: str, port: int, runner_name: str, config_path: str, tic
 
     store = Store(db)
     runner_inst = _make_runner(runner_name, config_path)
-    daemon = LoomDaemon(store, runner_inst, tick_interval=tick)
+    daemon = LoomDaemon(store, runner_inst, tick_interval=tick,
+                        templates_dir=templates_dir or None)
 
     # Create FastAPI app with store
     app = create_app(store)
