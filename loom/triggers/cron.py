@@ -7,7 +7,8 @@ from typing import Optional
 OVER_BUDGET_THRESHOLD = 5.0
 
 
-def build_digest(store, since: str | None = None) -> dict:
+def build_digest(store, since: str | None = None,
+                 threshold: float = OVER_BUDGET_THRESHOLD) -> dict:
     """Query instances and return a digest dict.
 
     Parameters
@@ -17,6 +18,10 @@ def build_digest(store, since: str | None = None) -> dict:
     since : str | None
         Optional ISO datetime string; only instances with created_at >= since
         are included.  If None, all instances are included.
+    threshold : float
+        Cost red line (USD); instances at or above it are flagged over_budget.
+        Defaults to ``OVER_BUDGET_THRESHOLD``; pass the ``[budget] red_line_usd``
+        value from ``loom.toml`` to override.
 
     Returns
     -------
@@ -53,7 +58,7 @@ def build_digest(store, since: str | None = None) -> dict:
         st = inst["status"]
         by_status[st] = by_status.get(st, 0) + 1
         total_cost += inst["cost_usd"]
-        if inst["cost_usd"] >= OVER_BUDGET_THRESHOLD:
+        if inst["cost_usd"] >= threshold:
             over_budget.append(inst)
 
     return {

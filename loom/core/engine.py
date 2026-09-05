@@ -29,6 +29,10 @@ async def step_instance(store, instance_id: str, runner) -> str:
     if instance.status in ("succeeded", "failed", "cancelled"):
         return instance.status
 
+    # Blocked instances stay blocked until manually resumed
+    if instance.status == "blocked":
+        return "blocked"
+
     # If instance is waiting_gate, check if any gates were approved → resume
     if instance.status == "waiting_gate":
         nodes = store.list_nodes(instance_id)
@@ -106,12 +110,26 @@ async def step_instance(store, instance_id: str, runner) -> str:
     for nid in ready:
         node_obj = node_map[nid]
 
+        # Budget hard ceiling: block the instance if accumulated cost has
+        # already reached this node's token budget (do not spend more).
+        if node_obj.budget_tokens and instance.cost_tokens >= node_obj.budget_tokens:
+            reason = (f"budget exceeded: cost_tokens={instance.cost_tokens} "
+                      f">= node {nid} budget {node_obj.budget_tokens}")
+            if instance.status == "running":
+                record_transition(store, "instance", instance_id, "running", "blocked")
+                store.update_instance_status(instance_id, "blocked", blocked_reason=reason)
+            return "blocked"
+
         # Only transition if still pending (may already be running from gate approval)
         if node_obj.status == "pending":
             record_transition(store, "node", nid, "pending", "running")
             store.update_node_status(nid, "running", started_at=datetime.now().isoformat())
 
         result = await runner.run(node_obj)
+
+        # Accumulate cost regardless of outcome (cost was already spent).
+        store.add_instance_cost(instance_id, result.cost_tokens, result.cost_usd)
+        instance = store.get_instance(instance_id)  # refresh for next budget check
 
         if result.success:
             # running -> succeeded

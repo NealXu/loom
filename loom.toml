@@ -1,0 +1,14 @@
+# Loom configuration — tier-based runner routing + budget policy.
+# Runner selection: a node's `tier` maps to an ordered fallback chain.
+# If the primary runner's binary is absent, the next in the chain is tried.
+# A genuine task failure (non-zero exit) does NOT trigger fallback.
+
+[routing]
+critical = ["cc"]
+heavy    = ["codex", "cc"]
+tooling  = ["pi", "dsh"]
+bulk     = ["dsh", "pi"]
+
+[budget]
+# Morning digest flags instances whose cost_usd >= this red line.
+red_line_usd = 5.0

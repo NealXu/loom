@@ -186,6 +186,14 @@ class Store:
         )
         self.conn.commit()
 
+    def add_instance_cost(self, instance_id: str, cost_tokens: int, cost_usd: float) -> None:
+        """Accumulate runner-reported cost onto the instance."""
+        self.conn.execute(
+            "UPDATE instances SET cost_tokens = cost_tokens + ?, cost_usd = cost_usd + ? WHERE id = ?",
+            (cost_tokens, cost_usd, instance_id),
+        )
+        self.conn.commit()
+
     def update_instance_status(self, instance_id: str, status: str, **fields) -> None:
         """Update instance status and optional fields (started_at, finished_at, etc.)."""
         set_clauses = ["status = ?"]

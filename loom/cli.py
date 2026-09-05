@@ -43,6 +43,27 @@ _RUNNERS = {
 }
 
 
+def _make_runner(runner_name: str, config_path: str = "loom.toml"):
+    """Build a runner from name. ``auto`` returns a tier-routing Router.
+
+    With ``auto``, every real adapter is registered and the router selects
+    per-node by tier using the ``[routing]`` table in *config_path*.
+    """
+    if runner_name == "auto":
+        from loom.core.router import RunnerRouter, load_config
+        cfg = load_config(config_path)
+        if not cfg.get("routing"):
+            raise click.UsageError(
+                f"--runner auto requires a [routing] table in {config_path}")
+        runners = {name: cls() for name, cls in _RUNNERS.items() if name != "fake"}
+        return RunnerRouter(cfg, runners)
+
+    runner_cls = _RUNNERS.get(runner_name)
+    if runner_cls is None:
+        raise click.BadParameter(f"Unknown runner: {runner_name}", param_hint="--runner")
+    return runner_cls()
+
+
 # ---------------------------------------------------------------------------
 # Async orchestration helper
 # ---------------------------------------------------------------------------
@@ -139,24 +160,22 @@ def main():
     "--runner",
     "runner_name",
     default="fake",
-    help="Runner adapter: fake|cc|pi",
+    help="Runner adapter: fake|cc|pi|codex|dsh|auto (auto = tier routing).",
 )
+@click.option("--config", "config_path", default="loom.toml", help="Routing config for --runner auto.")
 @click.option(
     "--bg",
     is_flag=True,
     default=False,
     help="Background mode: create instance and let daemon execute.",
 )
-def run(template: str, db: str, params: str, runner_name: str, bg: bool) -> None:
+def run(template: str, db: str, params: str, runner_name: str, config_path: str, bg: bool) -> None:
     """Instantiate TEMPLATE and execute the DAG."""
     tpl = load_template(template)
     params_dict = json.loads(params)
     instance, nodes, edges = instantiate(tpl, params_dict)
 
-    runner_cls = _RUNNERS.get(runner_name)
-    if runner_cls is None:
-        raise click.BadParameter(f"Unknown runner: {runner_name}", param_hint="--runner")
-    runner_inst = runner_cls()
+    runner_inst = _make_runner(runner_name, config_path)
 
     with Store(db) as store:
         store.create_instance(instance)
@@ -198,6 +217,11 @@ async def _run_with_gates(store, instance, runner) -> None:
             # Paused at gate — inform user and exit
             click.echo(f"Instance {instance.id} paused at gate. Use 'loom gate list' to see pending gates.")
             click.echo("After approval, run 'loom serve' to resume, or use 'loom run' again.")
+            return
+
+        if status == "blocked":
+            inst = store.get_instance(instance.id)
+            click.echo(f"Instance {instance.id} blocked: {inst.blocked_reason}")
             return
 
         if status in ("succeeded", "failed", "cancelled"):
@@ -620,20 +644,17 @@ def reject(node_id: str, reason: str, db: str) -> None:
 @click.option("--db", default="loom.db", help="Path to the SQLite store.")
 @click.option("--host", default="127.0.0.1", help="Host to bind.")
 @click.option("--port", default=8000, type=int, help="Port to bind.")
-@click.option("--runner", "runner_name", default="fake", help="Runner adapter: fake|cc|pi|codex|dsh")
+@click.option("--runner", "runner_name", default="fake", help="Runner adapter: fake|cc|pi|codex|dsh|auto")
+@click.option("--config", "config_path", default="loom.toml", help="Routing config for --runner auto.")
 @click.option("--tick", default=2.0, type=float, help="Daemon tick interval (seconds).")
-def serve(db: str, host: str, port: int, runner_name: str, tick: float) -> None:
+def serve(db: str, host: str, port: int, runner_name: str, config_path: str, tick: float) -> None:
     """Start the Loom daemon and web server."""
     import uvicorn
     from loom.web.app import create_app
     from loom.daemon import LoomDaemon
 
-    runner_cls = _RUNNERS.get(runner_name)
-    if runner_cls is None:
-        raise click.BadParameter(f"Unknown runner: {runner_name}", param_hint="--runner")
-
     store = Store(db)
-    runner_inst = runner_cls()
+    runner_inst = _make_runner(runner_name, config_path)
     daemon = LoomDaemon(store, runner_inst, tick_interval=tick)
 
     # Create FastAPI app with store
