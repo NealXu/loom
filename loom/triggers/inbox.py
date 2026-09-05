@@ -1,6 +1,7 @@
 """Inbox file watcher — monitors a directory for new files and records events."""
 
 import json
+import logging
 from datetime import datetime
 
 from watchdog.events import FileSystemEventHandler
@@ -44,17 +45,20 @@ class InboxWatcher:
 
     def _process_file(self, file_path: str):
         """Read a file and insert an event with source='inbox'."""
-        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-            content = f.read()
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
 
-        event = Event(
-            source="inbox",
-            payload={"file": file_path, "content": content},
-        )
-        self.store.conn.execute(
-            """INSERT INTO events (source, payload, received_at, consumed_by_instance)
-               VALUES (?, ?, ?, ?)""",
-            (event.source, json.dumps(event.payload),
-             event.received_at.isoformat(), event.consumed_by_instance),
-        )
-        self.store.conn.commit()
+            event = Event(
+                source="inbox",
+                payload={"file": file_path, "content": content},
+            )
+            self.store.conn.execute(
+                """INSERT INTO events (source, payload, received_at, consumed_by_instance)
+                   VALUES (?, ?, ?, ?)""",
+                (event.source, json.dumps(event.payload),
+                 event.received_at.isoformat(), event.consumed_by_instance),
+            )
+            self.store.conn.commit()
+        except Exception:
+            logging.exception("Failed to process inbox file: %s", file_path)

@@ -65,3 +65,11 @@ def test_start_and_stop_observer(store, inbox_dir):
     watcher.stop()
     # After stop(), the observer thread should no longer be alive
     assert not watcher.observer.is_alive()
+
+
+def test_process_file_handles_errors(store, inbox_dir):
+    """_process_file does not crash when an exception occurs (e.g. file not found)."""
+    watcher = InboxWatcher(store, inbox_dir)
+    non_existent = os.path.join(inbox_dir, "does_not_exist.yaml")
+    # Should not raise — the error is caught and logged internally
+    watcher._process_file(non_existent)
