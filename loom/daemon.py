@@ -22,11 +22,13 @@ class LoomDaemon:
     """Async daemon that orchestrates instance execution."""
 
     def __init__(self, store, runner, tick_interval: float = 2.0,
-                 templates_dir: str | None = None, schedule_jobs: list[dict] | None = None):
+                 templates_dir: str | None = None, schedule_jobs: list[dict] | None = None,
+                 vault_dir: str | None = None):
         self.store = store
         self.runner = runner
         self.tick_interval = tick_interval
         self.templates_dir = templates_dir
+        self.vault_dir = vault_dir
         self.scheduler = None
         if schedule_jobs:
             from loom.core.schedule import CronScheduler
@@ -69,7 +71,7 @@ class LoomDaemon:
             await self._check_gate_resumption(inst.id)
             # After checking gates, step the instance (may resume if gate approved)
             try:
-                status = await step_instance(self.store, inst.id, self.runner)
+                status = await step_instance(self.store, inst.id, self.runner, vault_dir=self.vault_dir)
                 logger.debug(f"Instance {inst.id} -> {status}")
             except Exception as e:
                 logger.error(f"Error processing instance {inst.id}: {e}")
@@ -77,7 +79,7 @@ class LoomDaemon:
         # Process pending and running instances
         for inst in pending + running:
             try:
-                status = await step_instance(self.store, inst.id, self.runner)
+                status = await step_instance(self.store, inst.id, self.runner, vault_dir=self.vault_dir)
                 logger.debug(f"Instance {inst.id} -> {status}")
             except Exception as e:
                 logger.error(f"Error processing instance {inst.id}: {e}")

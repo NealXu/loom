@@ -191,7 +191,9 @@ def run(template: str, db: str, params: str, runner_name: str, config_path: str,
 
         # Synchronous mode: execute with gate support
         from loom.core.engine import step_instance
-        asyncio.run(_run_with_gates(store, instance, runner_inst))
+        from loom.core.router import load_config
+        vault = load_config(config_path).get("vault", {}).get("path") or None
+        asyncio.run(_run_with_gates(store, instance, runner_inst, vault_dir=vault))
 
         # Refresh from DB for summary.
         inst = store.get_instance(instance.id)
@@ -202,12 +204,12 @@ def run(template: str, db: str, params: str, runner_name: str, config_path: str,
     click.echo(f"Instance {inst.id} | status={inst.status} | nodes={node_count}")
 
 
-async def _run_with_gates(store, instance, runner) -> None:
+async def _run_with_gates(store, instance, runner, vault_dir: str | None = None) -> None:
     """Execute instance with gate support (sync mode)."""
     from loom.core.engine import step_instance
 
     while True:
-        status = await step_instance(store, instance.id, runner)
+        status = await step_instance(store, instance.id, runner, vault_dir=vault_dir)
 
         if status == "waiting_gate":
             # Paused at gate — inform user and exit
@@ -671,11 +673,13 @@ def serve(db: str, host: str, port: int, runner_name: str, config_path: str,
 
     from loom.core.router import load_config
     from loom.core.schedule import load_jobs
+    cfg = load_config(config_path)
     store = Store(db)
     runner_inst = _make_runner(runner_name, config_path)
     daemon = LoomDaemon(store, runner_inst, tick_interval=tick,
                         templates_dir=templates_dir or None,
-                        schedule_jobs=load_jobs(load_config(config_path)))
+                        schedule_jobs=load_jobs(cfg),
+                        vault_dir=cfg.get("vault", {}).get("path") or None)
 
     # Create FastAPI app with store
     app = create_app(store)

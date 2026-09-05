@@ -5,12 +5,35 @@ and daemon-driven async execution. Key difference: completed set is computed
 from DB (not in-memory) to support daemon restarts.
 """
 
+import hashlib
 from datetime import datetime
+from pathlib import Path
+from loom.core.models import Artifact
 from loom.core.scheduler import ready_nodes
 from loom.core.state import record_transition
 
 
-async def step_instance(store, instance_id: str, runner) -> str:
+def _write_artifact(store, vault_dir: str, instance_id: str, node_id: str, result) -> None:
+    """Write a node's output to the Vault and register it as an Artifact."""
+    target_dir = Path(vault_dir) / instance_id
+    target_dir.mkdir(parents=True, exist_ok=True)
+    path = target_dir / f"{node_id}.md"
+    body = result.output or ""
+    path.write_text(f"# {node_id}\n\n{body}\n", encoding="utf-8")
+    sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    store.create_artifact(Artifact(node_id=node_id, kind="md",
+                                   path=str(path), sha256=sha, vault_link=path.name))
+    node = store.get_node(node_id)
+    if node is not None:
+        paths = list(node.artifact_paths)
+        if str(path) not in paths:
+            paths.append(str(path))
+            store.conn.execute("UPDATE nodes SET artifact_paths = ? WHERE id = ?",
+                               (__import__("json").dumps(paths), node_id))
+            store.conn.commit()
+
+
+async def step_instance(store, instance_id: str, runner, vault_dir: str | None = None) -> str:
     """Execute one tick of instance orchestration.
 
     Loads instance state from DB, runs ready nodes, handles gates.
@@ -19,6 +42,9 @@ async def step_instance(store, instance_id: str, runner) -> str:
     Gate handling: if a ready node has gate=approve, transition it to
     waiting_gate and pause the instance. The daemon (or CLI) will resume
     after external approval.
+
+    When *vault_dir* is set, each successful node's output is written to
+    ``<vault_dir>/<instance_id>/<node_id>.md`` and registered as an Artifact.
     """
     # Load instance
     instance = store.get_instance(instance_id)
@@ -136,6 +162,12 @@ async def step_instance(store, instance_id: str, runner) -> str:
             record_transition(store, "node", nid, "running", "succeeded")
             store.update_node_status(nid, "succeeded", finished_at=datetime.now().isoformat())
             completed.add(nid)
+            # P4-E: persist output to Vault + register artifact (best-effort).
+            if vault_dir:
+                try:
+                    _write_artifact(store, vault_dir, instance_id, nid, result)
+                except Exception:
+                    pass  # artifact write must never fail a node
         else:
             # running -> failed
             record_transition(store, "node", nid, "running", "failed")

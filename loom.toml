@@ -13,6 +13,12 @@ bulk     = ["dsh", "pi"]
 # Morning digest flags instances whose cost_usd >= this red line.
 red_line_usd = 5.0
 
+[vault]
+# When set, each successful node's output is written to
+# <path>/<instance_id>/<node_id>.md and registered as an Artifact.
+# Leave empty to disable artifact persistence.
+# path = "D:/Vaults/loom"
+
 # Periodic jobs (P2-L). The daemon fires each as a cron event every
 # `every_seconds`; the dispatcher targets the named template directly.
 # Example — run the handoff-refresh SOP once a day:
