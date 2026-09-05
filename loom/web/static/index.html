@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loom</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.5; }
+  #app { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; color: #f8fafc; }
+  #status { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem; }
+
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; }
+  @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; }
+  .panel h2 { font-size: 1rem; color: #cbd5e1; margin-bottom: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; }
+
+  /* Instance list */
+  .instance-item { padding: 0.5rem 0; border-bottom: 1px solid #1a2332; }
+  .instance-item:last-child { border-bottom: none; }
+  .instance-title { font-weight: 600; font-size: 0.9rem; color: #e2e8f0; }
+  .instance-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; font-size: 0.8rem; }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+  .badge-success { background: #065f46; color: #6ee7b7; }
+  .badge-running  { background: #1e3a5f; color: #93c5fd; }
+  .badge-pending  { background: #4b3b00; color: #fcd34d; }
+  .badge-failed   { background: #7f1d1d; color: #fca5a5; }
+  .badge-blocked  { background: #4a1d5f; color: #d8b4fe; }
+  .badge-default  { background: #334155; color: #94a3b8; }
+
+  .cost { color: #94a3b8; font-variant-numeric: tabular-nums; }
+  .cost-over-budget { color: #f87171; font-weight: 700; }
+
+  /* Graph panel */
+  .instance-group { margin-bottom: 1rem; }
+  .instance-group h3 { font-size: 0.9rem; color: #93c5fd; margin-bottom: 0.5rem; }
+  .node { display: inline-flex; align-items: center; padding: 0.3rem 0.6rem; margin: 0.2rem; border-radius: 6px; background: #334155; font-size: 0.8rem; border: 1px solid #475569; }
+  .node-kind { color: #a78bfa; margin-right: 0.4rem; font-size: 0.7rem; text-transform: uppercase; }
+  .edge-list { font-size: 0.75rem; color: #64748b; margin-top: 0.4rem; }
+  .edge-list span { display: inline-block; margin-right: 0.6rem; }
+  .arrow { color: #64748b; }
+
+  .error-msg { background: #7f1d1d; color: #fca5a5; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
+  .empty-msg { color: #64748b; font-style: italic; padding: 1rem 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>Loom</h1>
+  <div id="status">Loading...</div>
+
+  <div class="layout">
+    <div id="instances" class="panel">
+      <h2>Instances</h2>
+    </div>
+    <div id="graph" class="panel">
+      <h2>Graph</h2>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Red-highlight instances with cost_usd >= 5 (over-budget threshold)
+  var OVER_BUDGET_THRESHOLD = 5;
+
+  var statusEl  = document.getElementById("status");
+  var instPanel = document.getElementById("instances");
+  var graphPanel = document.getElementById("graph");
+
+  // --- Fetch helpers -----------------------------------------------------------
+
+  function fetchJSON(url) {
+    return fetch(url).then(function (res) {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    });
+  }
+
+  function showError(msg) {
+    var div = document.createElement("div");
+    div.className = "error-msg";
+    div.textContent = msg;
+    statusEl.parentNode.insertBefore(div, statusEl.nextSibling);
+  }
+
+  // --- Render: instances panel --------------------------------------------------
+
+  function statusBadge(status) {
+    var cls = "badge-default";
+    var s = (status || "").toLowerCase();
+    if (s === "success" || s === "completed") cls = "badge-success";
+    else if (s === "running")  cls = "badge-running";
+    else if (s === "pending")  cls = "badge-pending";
+    else if (s === "failed")   cls = "badge-failed";
+    else if (s === "blocked")  cls = "badge-blocked";
+    var span = document.createElement("span");
+    span.className = "badge " + cls;
+    span.textContent = status;
+    return span;
+  }
+
+  function renderInstances(instances) {
+    // Keep the h2
+    var h2 = instPanel.querySelector("h2");
+
+    if (!instances.length) {
+      instPanel.innerHTML = "";
+      instPanel.appendChild(h2);
+      var empty = document.createElement("div");
+      empty.className = "empty-msg";
+      empty.textContent = "No instances found.";
+      instPanel.appendChild(empty);
+      return;
+    }
+
+    instPanel.innerHTML = "";
+    instPanel.appendChild(h2);
+
+    instances.forEach(function (inst) {
+      var item = document.createElement("div");
+      item.className = "instance-item";
+
+      var title = document.createElement("div");
+      title.className = "instance-title";
+      title.textContent = inst.title || inst.id;
+      item.appendChild(title);
+
+      var meta = document.createElement("div");
+      meta.className = "instance-meta";
+      meta.appendChild(statusBadge(inst.status));
+
+      var cost = document.createElement("span");
+      var usd = inst.cost_usd || 0;
+      cost.className = "cost" + (usd >= OVER_BUDGET_THRESHOLD ? " cost-over-budget" : "");
+      cost.textContent = "$" + usd.toFixed(4);
+      meta.appendChild(cost);
+
+      item.appendChild(meta);
+      instPanel.appendChild(item);
+    });
+  }
+
+  // --- Render: graph panel ------------------------------------------------------
+
+  function renderGraph(graphData) {
+    var h2 = graphPanel.querySelector("h2");
+    graphPanel.innerHTML = "";
+    graphPanel.appendChild(h2);
+
+    var instances = graphData.instances || [];
+    var nodes     = graphData.nodes     || [];
+    var edges     = graphData.edges     || [];
+
+    if (!instances.length && !nodes.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty-msg";
+      empty.textContent = "No graph data.";
+      graphPanel.appendChild(empty);
+      return;
+    }
+
+    // Group nodes by instance_id
+    var byInstance = {};
+    nodes.forEach(function (n) {
+      var iid = n.instance_id;
+      if (!byInstance[iid]) byInstance[iid] = [];
+      byInstance[iid].push(n);
+    });
+
+    // Build edge lookup: from_node -> [to_node]
+    var edgeMap = {};
+    edges.forEach(function (e) {
+      if (!edgeMap[e.from_node]) edgeMap[e.from_node] = [];
+      edgeMap[e.from_node].push(e.to_node);
+    });
+
+    // Render each instance group
+    instances.forEach(function (inst) {
+      var group = document.createElement("div");
+      group.className = "instance-group";
+
+      var heading = document.createElement("h3");
+      var costStr = "";
+      if (inst.cost_usd != null) {
+        var usd = inst.cost_usd;
+        costStr = (usd >= OVER_BUDGET_THRESHOLD)
+          ? " ⚠ $" + usd.toFixed(4)   // warning sign for over-budget
+          : " $" + usd.toFixed(4);
+      }
+      heading.textContent = (inst.title || inst.id) + costStr;
+      if (inst.cost_usd >= OVER_BUDGET_THRESHOLD) heading.style.color = "#f87171";
+      group.appendChild(heading);
+
+      var instNodes = byInstance[inst.id] || [];
+      var nodeIdSet = {};
+      instNodes.forEach(function (n) { nodeIdSet[n.id] = true; });
+
+      instNodes.forEach(function (n) {
+        var nodeEl = document.createElement("span");
+        nodeEl.className = "node";
+        var kindSpan = document.createElement("span");
+        kindSpan.className = "node-kind";
+        kindSpan.textContent = n.kind || "?";
+        nodeEl.appendChild(kindSpan);
+        nodeEl.appendChild(document.createTextNode(n.title || n.id));
+        group.appendChild(nodeEl);
+      });
+
+      // Edges within this instance
+      var instEdges = edges.filter(function (e) {
+        return nodeIdSet[e.from_node] || nodeIdSet[e.to_node];
+      });
+      if (instEdges.length) {
+        var edgeDiv = document.createElement("div");
+        edgeDiv.className = "edge-list";
+        instEdges.forEach(function (e) {
+          var s = document.createElement("span");
+          s.innerHTML = escHtml(shortId(e.from_node)) +
+            " <span class='arrow'>&rarr;</span> " +
+            escHtml(shortId(e.to_node));
+          edgeDiv.appendChild(s);
+        });
+        group.appendChild(edgeDiv);
+      }
+
+      graphPanel.appendChild(group);
+    });
+  }
+
+  function shortId(id) {
+    return (id && id.length > 8) ? id.slice(0, 8) + "…" : id;
+  }
+
+  function escHtml(str) {
+    var d = document.createElement("span");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // --- Init ---------------------------------------------------------------------
+
+  Promise.all([
+    fetchJSON("/api/instances"),
+    fetchJSON("/api/graph")
+  ]).then(function (results) {
+    var instances = results[0];
+    var graphData = results[1];
+    renderInstances(instances);
+    renderGraph(graphData);
+    statusEl.textContent = "Loaded " + instances.length + " instance" +
+      (instances.length === 1 ? "" : "s");
+  }).catch(function (err) {
+    statusEl.textContent = "Error loading data";
+    showError("Failed to load data: " + err.message);
+  });
+})();
+</script>
+</body>
+</html>
