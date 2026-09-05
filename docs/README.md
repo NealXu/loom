@@ -27,9 +27,9 @@ docs/
 
 ## 当前文档清单
 
-- `handoff/2026-09-05-loom-handoff.md` — 交接文档（P0 后已更新）：132 tests green，剩余缺口与 P1+ 计划
+- `handoff/2026-09-05-loom-handoff.md` — 交接文档（P1 后已更新）：153 tests green，剩余缺口与 P2+ 计划
 - `reports/2026-09-05-overview.md` — 项目全景进展：架构图、完成度、模块清单（P0 前快照）
-- `reports/2026-09-05-next-steps.md` — 下步工作推荐：P0-P3 优先级与执行顺序（P0 已完成）
+- `reports/2026-09-05-next-steps.md` — 下步工作推荐：P0-P3 优先级与执行顺序（P0/P1 已完成）
 - `reports/2026-09-05-p0-daemon-gate-complete.md` — P0-A/B 完成报告：daemon + 门禁实现明细与验证
 - `superpowers/plans/2026-09-05-loom.md` — SDD 实施计划（28 任务）
 - `superpowers/specs/2026-09-05-loom-design.md` — 设计规格：两层图系统架构
