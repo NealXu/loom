@@ -27,7 +27,7 @@ docs/
 
 ## 当前文档清单
 
-- `handoff/2026-09-05-loom-handoff.md` — 交接文档（P1 后已更新）：153 tests green，剩余缺口与 P2+ 计划
+- `handoff/2026-09-05-loom-handoff.md` — 交接文档（P0-P3 全完成后）：179 tests green，设计功能面已闭环，余下为增强/运维
 - `reports/2026-09-05-overview.md` — 项目全景进展：架构图、完成度、模块清单（P0 前快照）
 - `reports/2026-09-05-next-steps.md` — 下步工作推荐：P0-P3 优先级与执行顺序（P0/P1 已完成）
 - `reports/2026-09-05-p0-daemon-gate-complete.md` — P0-A/B 完成报告：daemon + 门禁实现明细与验证
