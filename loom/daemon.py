@@ -41,10 +41,11 @@ class LoomDaemon:
             await self._crash_recovery()
             self._initial_recovery_done = True
 
-        # P2-L: fire due scheduled jobs as cron events
+        # P2-L: fire due scheduled jobs as cron events (wall-clock for
+        # persisted state to survive restarts).
         if self.scheduler is not None:
             try:
-                self.scheduler.maybe_fire(self.store, now=time.monotonic())
+                self.scheduler.maybe_fire(self.store, now=time.time())
             except Exception as e:
                 logger.error(f"schedule fire failed: {e}")
 

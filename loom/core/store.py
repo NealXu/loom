@@ -100,6 +100,12 @@ class Store:
                 "ALTER TABLE events ADD COLUMN dispatched TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # P4-B: scheduler last-fire state.
+        self.conn.execute(
+            """CREATE TABLE IF NOT EXISTS schedule_state (
+                template_id TEXT PRIMARY KEY,
+                last_fire_at TEXT
+            )""")
         self.conn.commit()
 
     def create_node(self, node: Node):

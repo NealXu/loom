@@ -26,15 +26,29 @@ class CronScheduler:
         self._last_fire: dict[str, float] = {}
 
     def maybe_fire(self, store, now: float) -> list[Event]:
-        """Emit events for every job whose interval has elapsed. Returns events."""
+        """Emit events for every job whose interval has elapsed. Returns events.
+
+        Last-fire time is persisted in the ``schedule_state`` table so a daemon
+        restart neither double-fires nor loses track of a job's cadence. *now*
+        is a wall-clock epoch (``time.time()``), meaningful across processes.
+        """
         fired: list[Event] = []
         for job in self._jobs:
             tpl = job["template"]
             interval = float(job.get("every_seconds", 86400))
-            last = self._last_fire.get(tpl)
+            row = store.conn.execute(
+                "SELECT last_fire_at FROM schedule_state WHERE template_id = ?",
+                (tpl,)).fetchone()
+            last = float(row["last_fire_at"]) if row and row["last_fire_at"] else None
             if last is not None and (now - last) < interval:
                 continue
-            self._last_fire[tpl] = now
+            store.conn.execute(
+                """INSERT INTO schedule_state (template_id, last_fire_at)
+                   VALUES (?, ?)
+                   ON CONFLICT(template_id) DO UPDATE SET last_fire_at = excluded.last_fire_at""",
+                (tpl, str(now)),
+            )
+            store.conn.commit()
             event = Event(source="cron",
                           payload={"template": tpl, "params": job.get("params", {})})
             store.create_event(event)
