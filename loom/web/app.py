@@ -80,6 +80,61 @@ def create_app(store) -> FastAPI:
 
         return {"instances": instances, "nodes": nodes, "edges": edges}
 
+    # -----------------------------------------------------------------------
+    # P0-B: Gate API endpoints
+    # -----------------------------------------------------------------------
+
+    @app.get("/api/gates")
+    def get_gates(instance_id: str = None):
+        """List pending gate approvals."""
+        from loom.core.gate import get_pending_gates
+        gates = get_pending_gates(store, instance_id)
+        return gates
+
+    @app.post("/api/gates/{node_id}/approve")
+    def approve_gate(node_id: str, body: dict = None):
+        """Approve a gated node."""
+        from loom.core.gate import GateDecision, record_gate_decision
+
+        node = store.get_node(node_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+
+        body = body or {}
+        decision = GateDecision(
+            node_id=node_id,
+            instance_id=node.instance_id,
+            approved=True,
+            reason=body.get("reason", ""),
+        )
+        ok = record_gate_decision(store, decision)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Invalid gate transition")
+
+        return {"approved": True, "node_id": node_id}
+
+    @app.post("/api/gates/{node_id}/reject")
+    def reject_gate(node_id: str, body: dict = None):
+        """Reject a gated node."""
+        from loom.core.gate import GateDecision, record_gate_decision
+
+        node = store.get_node(node_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+
+        body = body or {}
+        decision = GateDecision(
+            node_id=node_id,
+            instance_id=node.instance_id,
+            approved=False,
+            reason=body.get("reason", ""),
+        )
+        ok = record_gate_decision(store, decision)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Invalid gate transition")
+
+        return {"approved": False, "node_id": node_id}
+
     return app
 
 

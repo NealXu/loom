@@ -46,6 +46,18 @@
 
   .error-msg { background: #7f1d1d; color: #fca5a5; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
   .empty-msg { color: #64748b; font-style: italic; padding: 1rem 0; }
+
+  /* Gate panel */
+  .gate-item { padding: 0.5rem 0; border-bottom: 1px solid #1a2332; }
+  .gate-item:last-child { border-bottom: none; }
+  .gate-title { font-weight: 600; font-size: 0.9rem; color: #fcd34d; }
+  .gate-meta { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+  .gate-actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; }
+  .gate-btn { padding: 0.3rem 0.8rem; border: none; border-radius: 4px; font-size: 0.8rem; cursor: pointer; font-weight: 600; }
+  .gate-btn-approve { background: #065f46; color: #6ee7b7; }
+  .gate-btn-approve:hover { background: #047857; }
+  .gate-btn-reject { background: #7f1d1d; color: #fca5a5; }
+  .gate-btn-reject:hover { background: #991b1b; }
 </style>
 </head>
 <body>
@@ -57,9 +69,12 @@
     <div id="instances" class="panel">
       <h2>Instances</h2>
     </div>
-    <div id="graph" class="panel">
-      <h2>Graph</h2>
+    <div id="gates" class="panel">
+      <h2>Pending Gates</h2>
     </div>
+  </div>
+  <div id="graph" class="panel" style="margin-top: 1rem;">
+    <h2>Graph</h2>
   </div>
 </div>
 
@@ -72,6 +87,7 @@
 
   var statusEl  = document.getElementById("status");
   var instPanel = document.getElementById("instances");
+  var gatesPanel = document.getElementById("gates");
   var graphPanel = document.getElementById("graph");
 
   // --- Fetch helpers -----------------------------------------------------------
@@ -144,6 +160,99 @@
 
       item.appendChild(meta);
       instPanel.appendChild(item);
+    });
+  }
+
+  // --- Render: gates panel ------------------------------------------------------
+
+  function renderGates(gates) {
+    var h2 = gatesPanel.querySelector("h2");
+    gatesPanel.innerHTML = "";
+    gatesPanel.appendChild(h2);
+
+    if (!gates.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty-msg";
+      empty.textContent = "No pending gates.";
+      gatesPanel.appendChild(empty);
+      return;
+    }
+
+    gates.forEach(function (gate) {
+      var item = document.createElement("div");
+      item.className = "gate-item";
+
+      var title = document.createElement("div");
+      title.className = "gate-title";
+      title.textContent = gate.title || gate.id;
+      item.appendChild(title);
+
+      var meta = document.createElement("div");
+      meta.className = "gate-meta";
+      meta.textContent = "Instance: " + (gate.instance_id || "?") + " | Kind: " + (gate.kind || "?");
+      item.appendChild(meta);
+
+      var actions = document.createElement("div");
+      actions.className = "gate-actions";
+
+      var approveBtn = document.createElement("button");
+      approveBtn.className = "gate-btn gate-btn-approve";
+      approveBtn.textContent = "Approve";
+      approveBtn.onclick = function () { approveGate(gate.id); };
+      actions.appendChild(approveBtn);
+
+      var rejectBtn = document.createElement("button");
+      rejectBtn.className = "gate-btn gate-btn-reject";
+      rejectBtn.textContent = "Reject";
+      rejectBtn.onclick = function () { rejectGate(gate.id); };
+      actions.appendChild(rejectBtn);
+
+      item.appendChild(actions);
+      gatesPanel.appendChild(item);
+    });
+  }
+
+  function approveGate(nodeId) {
+    fetch("/api/gates/" + nodeId + "/approve", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({reason: "Approved via UI"})
+    }).then(function (res) {
+      if (res.ok) {
+        statusEl.textContent = "Gate approved: " + nodeId;
+        refreshData();
+      } else {
+        showError("Failed to approve gate");
+      }
+    });
+  }
+
+  function rejectGate(nodeId) {
+    var reason = prompt("Rejection reason:");
+    if (reason === null) return; // cancelled
+    fetch("/api/gates/" + nodeId + "/reject", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({reason: reason})
+    }).then(function (res) {
+      if (res.ok) {
+        statusEl.textContent = "Gate rejected: " + nodeId;
+        refreshData();
+      } else {
+        showError("Failed to reject gate");
+      }
+    });
+  }
+
+  function refreshData() {
+    Promise.all([
+      fetchJSON("/api/instances"),
+      fetchJSON("/api/gates"),
+      fetchJSON("/api/graph")
+    ]).then(function (results) {
+      renderInstances(results[0]);
+      renderGates(results[1]);
+      renderGraph(results[2]);
     });
   }
 
@@ -248,14 +357,18 @@
 
   Promise.all([
     fetchJSON("/api/instances"),
+    fetchJSON("/api/gates"),
     fetchJSON("/api/graph")
   ]).then(function (results) {
     var instances = results[0];
-    var graphData = results[1];
+    var gates = results[1];
+    var graphData = results[2];
     renderInstances(instances);
+    renderGates(gates);
     renderGraph(graphData);
     statusEl.textContent = "Loaded " + instances.length + " instance" +
-      (instances.length === 1 ? "" : "s");
+      (instances.length === 1 ? "" : "s") + ", " + gates.length + " pending gate" +
+      (gates.length === 1 ? "" : "s");
   }).catch(function (err) {
     statusEl.textContent = "Error loading data";
     showError("Failed to load data: " + err.message);

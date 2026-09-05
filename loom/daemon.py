@@ -1,0 +1,113 @@
+"""Loom Daemon — async tick loop for instance orchestration (P0-A).
+
+The daemon runs in a single asyncio event loop alongside the FastAPI web server.
+Each tick:
+1. Crash recovery: reset running nodes/instances to pending
+2. Find all active instances (pending, running, waiting_gate)
+3. For waiting_gate: check if gates were approved, resume nodes
+4. For pending/running: call step_instance to advance
+"""
+
+import asyncio
+import logging
+from datetime import datetime
+from loom.core.engine import step_instance
+from loom.core.state import record_transition
+
+logger = logging.getLogger(__name__)
+
+
+class LoomDaemon:
+    """Async daemon that orchestrates instance execution."""
+
+    def __init__(self, store, runner, tick_interval: float = 2.0):
+        self.store = store
+        self.runner = runner
+        self.tick_interval = tick_interval
+        self.running = False
+        self._initial_recovery_done = False
+
+    async def tick(self):
+        """Single tick: recover crashes, process active instances."""
+        # Crash recovery: only on first tick (daemon startup)
+        if not self._initial_recovery_done:
+            await self._crash_recovery()
+            self._initial_recovery_done = True
+
+        # Find all active instances
+        pending = self.store.list_instances_by_status("pending")
+        running = self.store.list_instances_by_status("running")
+        waiting = self.store.list_instances_by_status("waiting_gate")
+
+        # Process waiting_gate instances: check for approved gates, then step
+        for inst in waiting:
+            await self._check_gate_resumption(inst.id)
+            # After checking gates, step the instance (may resume if gate approved)
+            try:
+                status = await step_instance(self.store, inst.id, self.runner)
+                logger.debug(f"Instance {inst.id} -> {status}")
+            except Exception as e:
+                logger.error(f"Error processing instance {inst.id}: {e}")
+
+        # Process pending and running instances
+        for inst in pending + running:
+            try:
+                status = await step_instance(self.store, inst.id, self.runner)
+                logger.debug(f"Instance {inst.id} -> {status}")
+            except Exception as e:
+                logger.error(f"Error processing instance {inst.id}: {e}")
+                # Mark as failed to prevent infinite retries
+                try:
+                    record_transition(self.store, "instance", inst.id,
+                                     self.store.get_instance(inst.id).status, "failed")
+                    self.store.update_instance_status(inst.id, "failed",
+                                                      finished_at=datetime.now().isoformat())
+                except Exception:
+                    pass
+
+    async def _crash_recovery(self):
+        """Reset running nodes/instances to pending (crash recovery)."""
+        # Reset running nodes to pending
+        self.store.conn.execute(
+            "UPDATE nodes SET status = 'pending' WHERE status = 'running'"
+        )
+        # Reset running instances to pending
+        self.store.conn.execute(
+            "UPDATE instances SET status = 'pending' WHERE status = 'running'"
+        )
+        self.store.conn.commit()
+
+    async def _check_gate_resumption(self, instance_id: str):
+        """Check if any gates were approved and resume nodes."""
+        # Find nodes in waiting_gate for this instance
+        nodes = self.store.list_nodes(instance_id)
+        for node in nodes:
+            if node.status == "waiting_gate":
+                # Check if there's an approved gate decision
+                row = self.store.conn.execute(
+                    "SELECT approved FROM gate_decisions WHERE node_id = ? ORDER BY decided_at DESC LIMIT 1",
+                    (node.id,)
+                ).fetchone()
+                if row and row["approved"]:
+                    # Gate was approved, node should already be in running state
+                    # (record_gate_decision handles the transition)
+                    pass
+
+    async def run_forever(self):
+        """Main loop: tick until stopped."""
+        self.running = True
+        logger.info(f"Daemon started (tick_interval={self.tick_interval}s)")
+        try:
+            while self.running:
+                await self.tick()
+                await asyncio.sleep(self.tick_interval)
+        except asyncio.CancelledError:
+            logger.info("Daemon cancelled")
+        finally:
+            self.running = False
+            logger.info("Daemon stopped")
+
+    def stop(self):
+        """Signal the daemon to stop."""
+        self.running = False
+        logger.info("Daemon stop requested")

@@ -141,7 +141,13 @@ def main():
     default="fake",
     help="Runner adapter: fake|cc|pi",
 )
-def run(template: str, db: str, params: str, runner_name: str) -> None:
+@click.option(
+    "--bg",
+    is_flag=True,
+    default=False,
+    help="Background mode: create instance and let daemon execute.",
+)
+def run(template: str, db: str, params: str, runner_name: str, bg: bool) -> None:
     """Instantiate TEMPLATE and execute the DAG."""
     tpl = load_template(template)
     params_dict = json.loads(params)
@@ -156,8 +162,21 @@ def run(template: str, db: str, params: str, runner_name: str) -> None:
         store.create_instance(instance)
         for n in nodes:
             store.create_node(n)
+        for e in edges:
+            store.conn.execute(
+                "INSERT INTO edges (instance_id, from_node, to_node, type, condition) VALUES (?, ?, ?, ?, ?)",
+                (e.instance_id, e.from_node, e.to_node, e.type, e.condition or "")
+            )
+        store.conn.commit()
 
-        asyncio.run(_run_instance(store, instance, nodes, edges, runner_inst))
+        if bg:
+            # Background mode: just create instance, daemon will pick it up
+            click.echo(f"Instance {instance.id} created (pending). Daemon will execute.")
+            return
+
+        # Synchronous mode: execute with gate support
+        from loom.core.engine import step_instance
+        asyncio.run(_run_with_gates(store, instance, runner_inst))
 
         # Refresh from DB for summary.
         inst = store.get_instance(instance.id)
@@ -166,6 +185,26 @@ def run(template: str, db: str, params: str, runner_name: str) -> None:
         ).fetchone()[0]
 
     click.echo(f"Instance {inst.id} | status={inst.status} | nodes={node_count}")
+
+
+async def _run_with_gates(store, instance, runner) -> None:
+    """Execute instance with gate support (sync mode)."""
+    from loom.core.engine import step_instance
+
+    while True:
+        status = await step_instance(store, instance.id, runner)
+
+        if status == "waiting_gate":
+            # Paused at gate — inform user and exit
+            click.echo(f"Instance {instance.id} paused at gate. Use 'loom gate list' to see pending gates.")
+            click.echo("After approval, run 'loom serve' to resume, or use 'loom run' again.")
+            return
+
+        if status in ("succeeded", "failed", "cancelled"):
+            # Done
+            return
+
+        # Still running, continue
 
 
 @main.command(name="list")
@@ -488,3 +527,144 @@ def status(instance_id: str, db: str) -> None:
     click.echo(f"Instance {inst.id} | status={inst.status} | cost_usd={inst.cost_usd}")
     for nr in node_rows:
         click.echo(f"  Node {nr['id']} | {nr['title']} | kind={nr['kind']} | status={nr['status']}")
+
+
+# ---------------------------------------------------------------------------
+# P0-B: Gate commands
+# ---------------------------------------------------------------------------
+
+@main.group()
+def gate():
+    """Gate approval commands."""
+    pass
+
+
+@gate.command(name="list")
+@click.option("--instance", "instance_id", default=None, help="Filter by instance ID.")
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def gate_list(instance_id: str | None, db: str) -> None:
+    """List pending gate approvals."""
+    from loom.core.gate import get_pending_gates
+
+    with Store(db) as store:
+        gates = get_pending_gates(store, instance_id)
+
+    if not gates:
+        click.echo("No pending gates.")
+        return
+
+    click.echo(f"Pending gates ({len(gates)}):")
+    for g in gates:
+        click.echo(f"  {g['id']}  instance={g['instance_id']}  title={g['title']}  kind={g['kind']}")
+
+
+@gate.command()
+@click.argument("node_id")
+@click.option("--reason", default="", help="Approval reason.")
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def approve(node_id: str, reason: str, db: str) -> None:
+    """Approve a gated node."""
+    from loom.core.gate import GateDecision, record_gate_decision
+
+    with Store(db) as store:
+        node = store.get_node(node_id)
+        if node is None:
+            raise click.UsageError(f"Node not found: {node_id}")
+
+        decision = GateDecision(
+            node_id=node_id,
+            instance_id=node.instance_id,
+            approved=True,
+            reason=reason,
+        )
+        ok = record_gate_decision(store, decision)
+
+    if ok:
+        click.echo(f"Node {node_id} approved.")
+    else:
+        click.echo(f"Failed to approve node {node_id} (invalid transition).")
+
+
+@gate.command()
+@click.argument("node_id")
+@click.option("--reason", required=True, help="Rejection reason.")
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def reject(node_id: str, reason: str, db: str) -> None:
+    """Reject a gated node."""
+    from loom.core.gate import GateDecision, record_gate_decision
+
+    with Store(db) as store:
+        node = store.get_node(node_id)
+        if node is None:
+            raise click.UsageError(f"Node not found: {node_id}")
+
+        decision = GateDecision(
+            node_id=node_id,
+            instance_id=node.instance_id,
+            approved=False,
+            reason=reason,
+        )
+        ok = record_gate_decision(store, decision)
+
+    if ok:
+        click.echo(f"Node {node_id} rejected.")
+    else:
+        click.echo(f"Failed to reject node {node_id} (invalid transition).")
+
+
+# ---------------------------------------------------------------------------
+# P0-A: Serve command
+# ---------------------------------------------------------------------------
+
+@main.command()
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+@click.option("--host", default="127.0.0.1", help="Host to bind.")
+@click.option("--port", default=8000, type=int, help="Port to bind.")
+@click.option("--runner", "runner_name", default="fake", help="Runner adapter: fake|cc|pi|codex|dsh")
+@click.option("--tick", default=2.0, type=float, help="Daemon tick interval (seconds).")
+def serve(db: str, host: str, port: int, runner_name: str, tick: float) -> None:
+    """Start the Loom daemon and web server."""
+    import uvicorn
+    from loom.web.app import create_app
+    from loom.daemon import LoomDaemon
+
+    runner_cls = _RUNNERS.get(runner_name)
+    if runner_cls is None:
+        raise click.BadParameter(f"Unknown runner: {runner_name}", param_hint="--runner")
+
+    store = Store(db)
+    runner_inst = runner_cls()
+    daemon = LoomDaemon(store, runner_inst, tick_interval=tick)
+
+    # Create FastAPI app with store
+    app = create_app(store)
+
+    # Start daemon in background
+    async def start_daemon():
+        await daemon.run_forever()
+
+    click.echo(f"Starting Loom server on {host}:{port} (tick={tick}s, runner={runner_name})")
+    click.echo("Press Ctrl+C to stop.")
+
+    try:
+        # Run daemon and uvicorn together
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        # Start daemon task
+        daemon_task = loop.create_task(start_daemon())
+
+        # Start uvicorn
+        config = uvicorn.Config(app, host=host, port=port, log_level="info")
+        server = uvicorn.Server(config)
+
+        # Run both
+        loop.run_until_complete(asyncio.gather(
+            daemon_task,
+            server.serve(),
+        ))
+    except KeyboardInterrupt:
+        click.echo("\nShutting down...")
+        daemon.stop()
+    finally:
+        store.close()

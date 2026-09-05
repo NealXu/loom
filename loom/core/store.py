@@ -113,11 +113,99 @@ class Store:
         self.conn.commit()
 
     def get_node(self, node_id: str) -> Optional[Node]:
-        import json
-        from datetime import datetime
         row = self.conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,)).fetchone()
         if not row:
             return None
+        return self._row_to_node(row)
+
+    def create_instance(self, inst: Instance):
+        import json
+        self.conn.execute(
+            """INSERT INTO instances
+            (id, template_id, owner, title, project_path, status, created_at, started_at,
+             finished_at, cost_tokens, cost_usd, blocked_reason, params)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (inst.id, inst.template_id, inst.owner, inst.title, inst.project_path,
+             inst.status, inst.created_at.isoformat(),
+             inst.started_at.isoformat() if inst.started_at else None,
+             inst.finished_at.isoformat() if inst.finished_at else None,
+             inst.cost_tokens, inst.cost_usd, inst.blocked_reason, json.dumps(inst.params))
+        )
+        self.conn.commit()
+
+    def get_instance(self, inst_id: str) -> Optional[Instance]:
+        row = self.conn.execute("SELECT * FROM instances WHERE id = ?", (inst_id,)).fetchone()
+        if not row:
+            return None
+        return self._row_to_instance(row)
+
+    # -----------------------------------------------------------------------
+    # P0-A: List and update methods for daemon support
+    # -----------------------------------------------------------------------
+
+    def list_instances_by_status(self, status: str) -> list[Instance]:
+        """Return all instances with the given status."""
+        rows = self.conn.execute(
+            "SELECT * FROM instances WHERE status = ?", (status,)
+        ).fetchall()
+        return [self._row_to_instance(r) for r in rows]
+
+    def list_nodes(self, instance_id: str) -> list[Node]:
+        """Return all nodes belonging to the given instance."""
+        rows = self.conn.execute(
+            "SELECT * FROM nodes WHERE instance_id = ?", (instance_id,)
+        ).fetchall()
+        return [self._row_to_node(r) for r in rows]
+
+    def list_edges(self, instance_id: str) -> list[Edge]:
+        """Return all edges belonging to the given instance."""
+        rows = self.conn.execute(
+            "SELECT * FROM edges WHERE instance_id = ?", (instance_id,)
+        ).fetchall()
+        return [
+            Edge(
+                instance_id=r["instance_id"],
+                from_node=r["from_node"],
+                to_node=r["to_node"],
+                type=r["type"],
+                condition=r["condition"] or "",
+            )
+            for r in rows
+        ]
+
+    def update_node_status(self, node_id: str, status: str, **fields) -> None:
+        """Update node status and optional fields (started_at, finished_at, etc.)."""
+        set_clauses = ["status = ?"]
+        values: list = [status]
+        for key, val in fields.items():
+            set_clauses.append(f"{key} = ?")
+            values.append(val)
+        values.append(node_id)
+        self.conn.execute(
+            f"UPDATE nodes SET {', '.join(set_clauses)} WHERE id = ?", values
+        )
+        self.conn.commit()
+
+    def update_instance_status(self, instance_id: str, status: str, **fields) -> None:
+        """Update instance status and optional fields (started_at, finished_at, etc.)."""
+        set_clauses = ["status = ?"]
+        values: list = [status]
+        for key, val in fields.items():
+            set_clauses.append(f"{key} = ?")
+            values.append(val)
+        values.append(instance_id)
+        self.conn.execute(
+            f"UPDATE instances SET {', '.join(set_clauses)} WHERE id = ?", values
+        )
+        self.conn.commit()
+
+    # -----------------------------------------------------------------------
+    # Row-to-dataclass helpers
+    # -----------------------------------------------------------------------
+
+    def _row_to_node(self, row) -> Node:
+        import json
+        from datetime import datetime
         return Node(
             id=row["id"],
             instance_id=row["instance_id"],
@@ -138,27 +226,9 @@ class Store:
             session_ref=row["session_ref"],
         )
 
-    def create_instance(self, inst: Instance):
-        import json
-        self.conn.execute(
-            """INSERT INTO instances
-            (id, template_id, owner, title, project_path, status, created_at, started_at,
-             finished_at, cost_tokens, cost_usd, blocked_reason, params)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (inst.id, inst.template_id, inst.owner, inst.title, inst.project_path,
-             inst.status, inst.created_at.isoformat(),
-             inst.started_at.isoformat() if inst.started_at else None,
-             inst.finished_at.isoformat() if inst.finished_at else None,
-             inst.cost_tokens, inst.cost_usd, inst.blocked_reason, json.dumps(inst.params))
-        )
-        self.conn.commit()
-
-    def get_instance(self, inst_id: str) -> Optional[Instance]:
+    def _row_to_instance(self, row) -> Instance:
         import json
         from datetime import datetime
-        row = self.conn.execute("SELECT * FROM instances WHERE id = ?", (inst_id,)).fetchone()
-        if not row:
-            return None
         return Instance(
             id=row["id"],
             template_id=row["template_id"],

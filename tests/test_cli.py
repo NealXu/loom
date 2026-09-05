@@ -66,11 +66,36 @@ def test_cli_status_shows_nodes(runner, tmp_db):
 
 
 def test_cli_run_creates_and_executes(runner, tmp_path):
-    """run command should create an instance and execute all 3 nodes."""
+    """run command should create an instance and execute all nodes."""
     db_path = str(tmp_path / "run.db")
-    template_path = os.path.join(
-        os.path.dirname(__file__), "..", "loom", "templates", "handoff-refresh.yaml"
-    )
+    # Create a simple template without gates for this test
+    template_path = str(tmp_path / "test-template.yaml")
+    with open(template_path, "w") as f:
+        f.write("""
+id: test-template
+version: 1
+trigger: [cli]
+provenance: manual
+params:
+  project_path: {type: string, required: true}
+nodes:
+  - id: analyze
+    kind: analysis
+    tier: heavy
+    spec: "Scan {{project_path}} and summarize current state."
+    depends_on: []
+  - id: refresh
+    kind: coding
+    tier: tooling
+    spec: "Rewrite {{project_path}}/handoff.md from the analysis."
+    depends_on: [analyze]
+  - id: report
+    kind: report
+    tier: tooling
+    spec: "Generate a summary report."
+    depends_on: [refresh]
+""")
+
     params = json.dumps({"project_path": str(tmp_path)})
 
     result = runner.invoke(
