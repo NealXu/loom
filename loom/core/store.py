@@ -84,6 +84,15 @@ class Store:
                 received_at TEXT,
                 consumed_by_instance TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS gate_decisions (
+                node_id TEXT,
+                instance_id TEXT,
+                approved INTEGER,
+                approver TEXT,
+                reason TEXT,
+                decided_at TEXT
+            );
         """)
         self.conn.commit()
 
