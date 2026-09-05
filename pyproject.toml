@@ -1,0 +1,23 @@
+[project]
+name = "loom"
+version = "0.1.0"
+description = "Two-layer graph system for automating daily work"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.32",
+    "aiohttp>=3.10",
+    "watchdog>=5.0",
+]
+
+[project.scripts]
+loom = "loom.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["loom*"]
