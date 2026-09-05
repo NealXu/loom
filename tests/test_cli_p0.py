@@ -92,6 +92,24 @@ def test_digest_command():
         assert "OVER BUDGET" in result.output.upper()
 
 
+def test_evolve_cli_writes_candidates(tmp_path):
+    """loom evolve with fake runner writes deterministic candidates."""
+    runner = CliRunner()
+    db_path = str(tmp_path / "t.db")
+    out = str(tmp_path / "discovered")
+    with Store(db_path) as store:
+        for i in range(3):
+            iid = f"i{i}"
+            store.create_instance(Instance(id=iid, template_id="job", status="succeeded"))
+            store.create_node(Node(id=f"{iid}-a", instance_id=iid, template_id="job",
+                                   title="step", kind="analysis", spec="do", status="succeeded"))
+    result = runner.invoke(main, ["evolve", "--db", db_path, "--out", out,
+                                  "--runner", "fake", "--min-frequency", "3"])
+    assert result.exit_code == 0, result.output
+    assert "discovered" in result.output.lower()
+    assert len(os.listdir(out)) == 1
+
+
 def test_run_bg_mode():
     """loom run --bg should create instance without executing."""
     runner = CliRunner()

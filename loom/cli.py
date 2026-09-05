@@ -568,6 +568,33 @@ def digest(db: str, config_path: str, since: str) -> None:
     click.echo(render_digest(d))
 
 
+@main.command()
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+@click.option("--out", "out_dir", default="loom/templates/discovered",
+              help="Directory to write discovered candidate templates.")
+@click.option("--runner", "runner_name", default="cc",
+              help="Runner for the summarization pass: cc|pi|codex|dsh|fake.")
+@click.option("--min-frequency", default=3, type=int, help="Min successful runs to propose.")
+def evolve(db: str, out_dir: str, runner_name: str, min_frequency: int) -> None:
+    """Discover recurring patterns and write candidate templates (LLM channel)."""
+    from loom.evolver.evolve import evolve as _evolve
+
+    runner_cls = _RUNNERS.get(runner_name)
+    if runner_cls is None:
+        raise click.BadParameter(f"Unknown runner: {runner_name}", param_hint="--runner")
+    runner_inst = runner_cls()
+
+    with Store(db) as store:
+        written = asyncio.run(_evolve(store, runner_inst, out_dir, min_frequency=min_frequency))
+
+    if not written:
+        click.echo("No candidates (no clusters met --min-frequency).")
+    else:
+        click.echo(f"Wrote {len(written)} discovered candidate(s):")
+        for p in written:
+            click.echo(f"  {p}")
+
+
 # ---------------------------------------------------------------------------
 # P0-B: Gate commands
 # ---------------------------------------------------------------------------

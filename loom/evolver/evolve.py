@@ -1,13 +1,22 @@
 """Evolution channel: weekly template discovery.
 
-Analyzes completed instances to discover recurring patterns that could be
-extracted as new templates. v1 uses simple template_id clustering; real LLM
-clustering and summarization are deferred (out of scope for the kernel milestone).
+Analyzes completed instances to discover recurring patterns and turn them into
+candidate templates. :func:`evolve` (P4-D) closes the loop: for each cluster it
+builds an evidence prompt, runs it through a runner (e.g. Claude Code) to get a
+YAML template proposal, and writes a loadable ``provenance: discovered`` file.
+If the LLM output is unusable it falls back to the deterministic
+:func:`propose_template_from_cluster`, so the sweep never yields broken files.
 """
 
+from __future__ import annotations
+
+import os
+import re
 from collections import Counter
 
-from loom.core.models import Instance
+import yaml
+
+from loom.core.models import Instance, Node
 from loom.core.store import Store
 
 
@@ -87,3 +96,123 @@ def propose_template_from_cluster(instance_ids: list[str], store: Store) -> dict
         "trigger": ["cli"],
         "nodes": nodes,
     }
+
+
+# ---------------------------------------------------------------------------
+# P4-D: LLM-driven discovery loop
+# ---------------------------------------------------------------------------
+
+_FENCE_RE = re.compile(r"```(?:yaml|yml)?\s*(.+?)```", re.DOTALL)
+
+
+def _cluster_evidence(store: Store, instance_ids: list[str]) -> str:
+    """Render a cluster's node kinds/specs as prompt evidence."""
+    lines: list[str] = []
+    for iid in instance_ids[:5]:
+        for n in store.list_nodes(iid):
+            lines.append(f"- [{n.kind}/{n.tier}] {n.spec}")
+    return "\n".join(lines)
+
+
+def _extract_yaml(text: str) -> dict | None:
+    """Pull a YAML mapping out of LLM output (raw, fenced, or embedded)."""
+    candidates = [text]
+    candidates += _FENCE_RE.findall(text)
+    # Fallback: substring from first top-level 'id:' / 'version:' line.
+    m = re.search(r"(?m)^(id|version):", text)
+    if m:
+        candidates.append(text[m.start():])
+    for cand in candidates:
+        try:
+            obj = yaml.safe_load(cand)
+        except yaml.YAMLError:
+            continue
+        if isinstance(obj, dict) and "nodes" in obj:
+            return obj
+    return None
+
+
+def _normalize(proposal: dict) -> dict:
+    """Coerce a proposal mapping into the shape load_template requires."""
+    proposal = dict(proposal)
+    proposal["version"] = proposal.get("version", 1)
+    proposal["trigger"] = proposal.get("trigger") or ["cli"]
+    proposal["params"] = proposal.get("params") or {}
+    proposal["provenance"] = "discovered"  # always mark as machine-found
+    seen: set[str] = set()
+    nodes = []
+    for i, n in enumerate(proposal.get("nodes") or []):
+        n = dict(n)
+        n["id"] = str(n.get("id") or f"step{i}")
+        if n["id"] in seen:
+            n["id"] = f"{n['id']}-{i}"
+        seen.add(n["id"])
+        n["kind"] = n.get("kind") or "analysis"
+        n["spec"] = n.get("spec") or ""
+        # only keep deps that survived dedup
+        n["depends_on"] = [d for d in (n.get("depends_on") or []) if d in seen and d != n["id"]]
+        n["tier"] = n.get("tier") or "tooling"
+        nodes.append(n)
+    proposal["nodes"] = nodes
+    if not nodes:
+        raise ValueError("no valid nodes")
+    return proposal
+
+
+def _proposal_prompt(template_id: str, evidence: str) -> str:
+    return (
+        "You are a workflow template distiller. From these recurring successful "
+        f"runs of '{template_id}', propose a reusable SOP as a YAML template with "
+        "keys: id, version, trigger, params, nodes (each node: id, kind, tier, "
+        "spec, depends_on). Return ONLY the YAML, no prose.\n\n"
+        f"Evidence:\n{evidence}"
+    )
+
+
+async def evolve(store: Store, runner, out_dir: str,
+                 min_frequency: int = 3) -> list[str]:
+    """Discover candidate templates and write loadable YAML files.
+
+    Returns the list of written file paths (one per qualifying cluster).
+    LLM output is validated; clusters whose LLM proposal is unusable fall
+    back to a deterministic proposal so a file is still produced.
+    """
+    from loom.core.loader import load_template
+    from loom.core.models import Node as _Node  # ensure import stays used
+
+    os.makedirs(out_dir, exist_ok=True)
+    written: list[str] = []
+
+    for cand in discover_template_candidates(store, min_frequency=min_frequency):
+        tid = cand["template_id"]
+        evidence = _cluster_evidence(store, cand["instance_ids"])
+        proposal = None
+        try:
+            probe = _Node(id=f"evolve-{tid}", instance_id="-", template_id=tid,
+                          spec=_proposal_prompt(tid, evidence), kind="analysis")
+            result = await runner.run(probe)
+            if result.success:
+                raw = _extract_yaml(result.output)
+                if raw is not None:
+                    proposal = _normalize(raw)
+        except Exception:
+            proposal = None
+
+        if proposal is None:  # deterministic fallback
+            try:
+                proposal = _normalize(
+                    propose_template_from_cluster(cand["instance_ids"], store))
+            except Exception:
+                continue
+
+        path = os.path.join(out_dir, f"{proposal['id']}.yaml")
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(proposal, f, allow_unicode=True, sort_keys=False)
+        try:
+            load_template(path)  # must be loadable to count as a candidate
+        except Exception:
+            os.remove(path)
+            continue
+        written.append(path)
+
+    return written
