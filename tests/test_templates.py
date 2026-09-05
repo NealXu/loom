@@ -106,3 +106,44 @@ def test_feature_loop_dependency_chain():
 
     # merge depends on review
     assert "review" in by_id["merge"].get("depends_on", [])
+
+
+# ── Task 21: repo-analysis template tests ──
+
+
+# ── Test 7: repo-analysis parses and has id/version/3 nodes ──
+
+
+def test_repo_analysis_parses():
+    tpl = _load_template("repo-analysis.yaml")
+    assert tpl["id"] == "repo-analysis"
+    assert tpl["version"] == 1
+    assert len(tpl["nodes"]) == 3, f"expected 3 nodes, got {len(tpl['nodes'])}"
+
+
+# ── Test 8: repo-analysis node ids are unique ──
+
+
+def test_repo_analysis_node_ids_unique():
+    tpl = _load_template("repo-analysis.yaml")
+    ids = [n["id"] for n in tpl["nodes"]]
+    assert len(ids) == len(set(ids)), f"node ids not unique: {ids}"
+    assert set(ids) == {"scan", "analyze", "report"}
+
+
+# ── Test 9: repo-analysis dependency chain scan → analyze → report ──
+
+
+def test_repo_analysis_dependency_chain():
+    tpl = _load_template("repo-analysis.yaml")
+    nodes = tpl["nodes"]
+    by_id = {n["id"]: n for n in nodes}
+
+    # scan is the root (no dependencies)
+    assert by_id["scan"].get("depends_on", []) == []
+
+    # analyze depends on scan
+    assert "scan" in by_id["analyze"].get("depends_on", [])
+
+    # report depends on analyze
+    assert "analyze" in by_id["report"].get("depends_on", [])

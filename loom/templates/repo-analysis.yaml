@@ -1,0 +1,22 @@
+id: repo-analysis
+version: 1
+trigger: [inbox, cron]
+provenance: manual
+params:
+  project_path: {type: string, required: true}
+nodes:
+  - id: scan
+    kind: analysis
+    tier: heavy
+    spec: "Scan the repository structure at {{project_path}} and identify all source files, dependencies, and build configuration"
+    depends_on: []
+  - id: analyze
+    kind: analysis
+    tier: heavy
+    spec: "Analyze the code patterns, architecture, and dependencies found in the scan"
+    depends_on: [scan]
+  - id: report
+    kind: report
+    tier: tooling
+    spec: "Generate a structured report summarizing the repository analysis results"
+    depends_on: [analyze]
