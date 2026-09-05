@@ -14,3 +14,10 @@ class PIAdapter(SubprocessAdapter):
     name = "pi"
     default_binary = "pi"
     print_flag = "-p"
+    parse_cost = True
+    extra_args = ["--mode", "json"]
+
+    def build_command(self, spec: str) -> list[str]:
+        """``pi --mode json -p <spec>`` — JSON output mode with flags up front."""
+        prefix = self._binary if isinstance(self._binary, list) else [self._binary]
+        return [*prefix, *self.extra_args, self._print_flag, spec]

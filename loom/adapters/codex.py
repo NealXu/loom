@@ -13,4 +13,10 @@ class CodexAdapter(SubprocessAdapter):
 
     name = "codex"
     default_binary = "codex"
-    print_flag = "-p"
+    print_flag = "-p"  # unused: codex takes the prompt positionally under `exec`
+    parse_cost = True
+
+    def build_command(self, spec: str) -> list[str]:
+        """``codex exec --json <spec>`` — the non-interactive JSONL interface."""
+        prefix = self._binary if isinstance(self._binary, list) else [self._binary]
+        return [*prefix, "exec", "--json", spec]

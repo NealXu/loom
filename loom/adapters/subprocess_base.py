@@ -53,13 +53,17 @@ class SubprocessAdapter(RunnerAdapter):
         self._timeout = timeout
         self._print_flag = self.print_flag
 
-    async def run(self, node) -> Result:
-        """Invoke ``<binary> <print_flag> <node.spec>`` and return a Result."""
+    def build_command(self, spec: str) -> list[str]:
+        """Assemble argv for one run. Override for CLIs with subcommands."""
         if isinstance(self._binary, list):
-            cmd = [*self._binary, self._print_flag, node.spec]
+            cmd = [*self._binary, self._print_flag, spec]
         else:
-            cmd = [self._binary, self._print_flag, node.spec]
-        cmd += list(self.extra_args)
+            cmd = [self._binary, self._print_flag, spec]
+        return cmd + list(self.extra_args)
+
+    async def run(self, node) -> Result:
+        """Invoke the built command with node.spec and return a Result."""
+        cmd = self.build_command(node.spec)
 
         work_dir = self._cwd or node.project_path or None
 

@@ -128,7 +128,8 @@ class TestPIAdapter:
 # ---------------------------------------------------------------------------
 
 # Stubs: Python one-liners invoked via [sys.executable, -c, code, ...]
-_CODEX_ECHO_CODE = "import sys; i=sys.argv.index('-p'); print(sys.argv[i+1])"
+# Codex uses `codex exec --json <spec>` — the spec is the final argv entry.
+_CODEX_ECHO_CODE = "import sys; print(sys.argv[-1])"
 _CODEX_FAIL_CODE = "import sys; sys.exit(42)"
 
 

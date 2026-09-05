@@ -18,30 +18,82 @@ def _first(d: dict, *keys, default=0):
     return default
 
 
+def _record_tokens(obj: dict) -> int:
+    """Best token total in one JSON record: any nested usage-style dict."""
+    best = 0
+
+    def walk(node):
+        nonlocal best
+        if isinstance(node, dict):
+            t = node.get("total_tokens")
+            if t is None:
+                t = (_first(node, "input_tokens", "prompt_tokens", default=0)
+                     + _first(node, "output_tokens", "completion_tokens", default=0))
+            try:
+                best = max(best, int(t or 0))
+            except (TypeError, ValueError):
+                pass
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(obj)
+    return best
+
+
+def _record_cost(obj: dict) -> float:
+    """Max cost float found anywhere in one JSON record."""
+    best = 0.0
+
+    def walk(node):
+        nonlocal best
+        if isinstance(node, dict):
+            for k in ("total_cost_usd", "cost_usd", "cost"):
+                if k in node and isinstance(node[k], (int, float)):
+                    best = max(best, float(node[k]))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(obj)
+    return best
+
+
 def extract_cost(output: str) -> tuple[int, float]:
-    """Return (tokens, usd) parsed from an agent CLI's stdout. (0, 0.0) if none."""
-    obj = None
+    """Return (tokens, usd) parsed from an agent CLI's stdout. (0, 0.0) if none.
+
+    Handles single-JSON output (claude), trailing-JSON-after-logs, and JSONL
+    event streams (codex ``exec --json``): every JSON object is scored and the
+    one with the largest token total wins — token_count events report
+    cumulative usage, so the max is the final total.
+    """
     text = output.strip()
-    if text:
-        try:
-            obj = json.loads(text)
-        except ValueError:
-            # Try the last non-empty line (CLIs often prefix logs).
-            for line in reversed(text.splitlines()):
-                line = line.strip()
-                if line.startswith("{"):
-                    try:
-                        obj = json.loads(line)
-                        break
-                    except ValueError:
-                        continue
-    if not isinstance(obj, dict):
+    if not text:
         return (0, 0.0)
 
-    usage = obj.get("usage") if isinstance(obj.get("usage"), dict) else obj
-    tokens = usage.get("total_tokens")
-    if tokens is None:
-        tokens = (_first(usage, "input_tokens", "prompt_tokens", default=0)
-                  + _first(usage, "output_tokens", "completion_tokens", default=0))
-    usd = float(_first(obj, "total_cost_usd", "cost_usd", "cost", default=0.0))
-    return (int(tokens or 0), usd)
+    records: list[dict] = []
+    try:
+        whole = json.loads(text)
+        if isinstance(whole, dict):
+            records.append(whole)
+    except ValueError:
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    obj = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(obj, dict):
+                    records.append(obj)
+
+    best = (0, 0.0)
+    for rec in records:
+        tokens, usd = _record_tokens(rec), _record_cost(rec)
+        if tokens > best[0] or (tokens == best[0] and usd > best[1]):
+            best = (tokens, usd)
+    return best
