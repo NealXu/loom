@@ -66,10 +66,19 @@ def dispatch_events(store: Store, templates_dir: str) -> list[str]:
         except ValueError:
             payload = {}
 
-        match = next((t for t in templates if row["source"] in (t.trigger or [])), None)
-        if match is None:
-            _mark(row["id"], "nomatch")
-            continue
+        # A payload "template" key targets by name (used by the scheduler);
+        # otherwise match on source ∈ Template.trigger.
+        target_name = payload.get("template")
+        if target_name:
+            match = next((t for t in templates if t.id == target_name), None)
+            if match is None:
+                _mark(row["id"], f"error:unknown_template:{target_name}")
+                continue
+        else:
+            match = next((t for t in templates if row["source"] in (t.trigger or [])), None)
+            if match is None:
+                _mark(row["id"], "nomatch")
+                continue
 
         params = payload.get("params", {})
         try:

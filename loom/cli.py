@@ -652,10 +652,13 @@ def serve(db: str, host: str, port: int, runner_name: str, config_path: str,
     from loom.web.app import create_app
     from loom.daemon import LoomDaemon
 
+    from loom.core.router import load_config
+    from loom.core.schedule import load_jobs
     store = Store(db)
     runner_inst = _make_runner(runner_name, config_path)
     daemon = LoomDaemon(store, runner_inst, tick_interval=tick,
-                        templates_dir=templates_dir or None)
+                        templates_dir=templates_dir or None,
+                        schedule_jobs=load_jobs(load_config(config_path)))
 
     # Create FastAPI app with store
     app = create_app(store)
