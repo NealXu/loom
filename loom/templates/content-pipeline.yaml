@@ -1,0 +1,28 @@
+id: content-pipeline
+version: 1
+trigger: [inbox, cli]
+provenance: manual
+params:
+  topic: {type: string, required: true}
+nodes:
+  - id: research
+    kind: analysis
+    tier: heavy
+    spec: "Research the topic '{{topic}}': gather key points, sources, and an outline."
+    depends_on: []
+  - id: draft
+    kind: report
+    tier: tooling
+    spec: "Write a first draft article from the research outline."
+    depends_on: [research]
+  - id: polish
+    kind: review
+    tier: tooling
+    spec: "Edit the draft for clarity, tone, and correctness; produce final markdown."
+    depends_on: [draft]
+  - id: publish
+    kind: deploy
+    tier: critical
+    gate: approve
+    spec: "Publish the finalized article (irreversible; requires human approval)."
+    depends_on: [polish]

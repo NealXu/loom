@@ -1,0 +1,29 @@
+id: ops-deploy
+version: 1
+trigger: [cli]
+provenance: manual
+params:
+  project_path: {type: string, required: true}
+  environment: {type: string, required: true}
+nodes:
+  - id: preflight
+    kind: analysis
+    tier: tooling
+    spec: "Preflight checks for {{environment}}: clean tree, tests pass, config valid."
+    depends_on: []
+  - id: build
+    kind: coding
+    tier: heavy
+    spec: "Build the deployable artifact for {{project_path}}."
+    depends_on: [preflight]
+  - id: deploy
+    kind: deploy
+    tier: critical
+    gate: approve
+    spec: "Deploy the built artifact to {{environment}} (irreversible; requires approval)."
+    depends_on: [build]
+  - id: verify
+    kind: analysis
+    tier: tooling
+    spec: "Post-deploy health check: confirm {{environment}} is up and responding."
+    depends_on: [deploy]

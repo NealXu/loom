@@ -147,3 +147,40 @@ def test_repo_analysis_dependency_chain():
 
     # report depends on analyze
     assert "analyze" in by_id["report"].get("depends_on", [])
+
+
+# ── P2-F: content-pipeline + ops-deploy ──
+
+
+def test_content_pipeline_structure():
+    tpl = _load_template("content-pipeline.yaml")
+    assert tpl["id"] == "content-pipeline"
+    ids = [n["id"] for n in tpl["nodes"]]
+    assert ids == ["research", "draft", "polish", "publish"]
+    # publish is the mandatory gate
+    pub = next(n for n in tpl["nodes"] if n["id"] == "publish")
+    assert pub["gate"] == "approve"
+
+
+def test_ops_deploy_structure():
+    tpl = _load_template("ops-deploy.yaml")
+    assert tpl["id"] == "ops-deploy"
+    ids = [n["id"] for n in tpl["nodes"]]
+    assert ids == ["preflight", "build", "deploy", "verify"]
+    deploy = next(n for n in tpl["nodes"] if n["id"] == "deploy")
+    assert deploy["gate"] == "approve"
+
+
+def test_all_templates_instantiate():
+    """Every shipped template must load + instantiate with its required params."""
+    from loom.core.loader import load_template, instantiate
+    cases = {
+        "content-pipeline.yaml": {"topic": "x"},
+        "ops-deploy.yaml": {"project_path": "/p", "environment": "prod"},
+    }
+    for name, params in cases.items():
+        tpl = load_template(str(_TEMPLATE_DIR / name))
+        inst, nodes, edges = instantiate(tpl, params)
+        assert inst.status == "pending"
+        assert len(nodes) == 4
+        assert len(edges) == 3  # linear chain of 4 nodes
