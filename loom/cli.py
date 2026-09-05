@@ -186,6 +186,132 @@ def list_cmd(db: str) -> None:
 
 
 @main.command()
+@click.argument("instance_id", required=False)
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def cost(instance_id: str | None, db: str) -> None:
+    """Display cost breakdown.
+
+    If INSTANCE_ID is given, show cost for that instance only.
+    Otherwise, show aggregate costs across all instances.
+    """
+    with Store(db) as store:
+        if instance_id is not None:
+            inst = store.get_instance(instance_id)
+            if inst is None:
+                raise click.UsageError(f"Instance not found: {instance_id}")
+            click.echo(f"Instance {inst.id}")
+            click.echo(f"  cost_tokens: {inst.cost_tokens}")
+            click.echo(f"  cost_usd:    ${inst.cost_usd:.6f}")
+        else:
+            row = store.conn.execute(
+                "SELECT COUNT(*) AS cnt, "
+                "COALESCE(SUM(cost_tokens), 0) AS total_tokens, "
+                "COALESCE(SUM(cost_usd), 0.0) AS total_usd "
+                "FROM instances"
+            ).fetchone()
+            click.echo("Aggregate costs")
+            click.echo(f"  instances:    {row['cnt']}")
+            click.echo(f"  total_tokens: {row['total_tokens']}")
+            click.echo(f"  total_usd:    ${row['total_usd']:.6f}")
+
+
+@main.command()
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def stats(db: str) -> None:
+    """Display system-wide statistics."""
+    with Store(db) as store:
+        # Instance counts by status.
+        inst_rows = store.conn.execute(
+            "SELECT status, COUNT(*) AS cnt FROM instances GROUP BY status"
+        ).fetchall()
+        inst_by_status = {r["status"]: r["cnt"] for r in inst_rows}
+        total_instances = sum(inst_by_status.values())
+
+        # Node counts by status.
+        node_rows = store.conn.execute(
+            "SELECT status, COUNT(*) AS cnt FROM nodes GROUP BY status"
+        ).fetchall()
+        node_by_status = {r["status"]: r["cnt"] for r in node_rows}
+        total_nodes = sum(node_by_status.values())
+
+        # Total events.
+        event_count = store.conn.execute(
+            "SELECT COUNT(*) AS cnt FROM events"
+        ).fetchone()["cnt"]
+
+        # Total gate decisions.
+        gate_count = store.conn.execute(
+            "SELECT COUNT(*) AS cnt FROM gate_decisions"
+        ).fetchone()["cnt"]
+
+    click.echo("System statistics")
+    click.echo(f"  Instances ({total_instances}):")
+    for status in ("pending", "running", "succeeded", "failed"):
+        if status in inst_by_status:
+            click.echo(f"    {status}: {inst_by_status[status]}")
+
+    click.echo(f"  Nodes ({total_nodes}):")
+    for status in ("pending", "running", "succeeded", "failed"):
+        if status in node_by_status:
+            click.echo(f"    {status}: {node_by_status[status]}")
+
+    click.echo(f"  Events:         {event_count}")
+    click.echo(f"  Gate decisions: {gate_count}")
+
+
+@main.command()
+@click.option("--db", default="loom.db", help="Path to the SQLite store.")
+def health(db: str) -> None:
+    """Display system health summary."""
+    with Store(db) as store:
+        # Recent instances (last 10 by created_at).
+        recent = store.conn.execute(
+            "SELECT status FROM instances ORDER BY created_at DESC LIMIT 10"
+        ).fetchall()
+        recent_count = len(recent)
+        recent_succeeded = sum(1 for r in recent if r["status"] == "succeeded")
+        recent_failed = sum(1 for r in recent if r["status"] == "failed")
+        if recent_succeeded > 0:
+            success_rate = recent_succeeded / recent_count * 100
+        else:
+            success_rate = 0.0
+
+        # Average cost per succeeded instance.
+        cost_row = store.conn.execute(
+            "SELECT COUNT(*) AS cnt, COALESCE(SUM(cost_usd), 0.0) AS total "
+            "FROM instances WHERE status = 'succeeded'"
+        ).fetchone()
+        if cost_row["cnt"] > 0:
+            avg_cost = cost_row["total"] / cost_row["cnt"]
+        else:
+            avg_cost = 0.0
+
+        # Pending gate approvals (approved IS NULL means undecided).
+        pending_gates = store.conn.execute(
+            "SELECT COUNT(*) AS cnt FROM gate_decisions WHERE approved IS NULL OR approved = 0"
+        ).fetchone()["cnt"]
+
+        # Last event timestamp.
+        last_event = store.conn.execute(
+            "SELECT received_at FROM events ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        last_event_ts = last_event["received_at"] if last_event else "n/a"
+
+    click.echo("System health")
+    if recent_count == 0:
+        click.echo("  No instances recorded yet.")
+    else:
+        click.echo(
+            f"  Recent instances (last {recent_count}): "
+            f"{recent_succeeded} succeeded, {recent_failed} failed "
+            f"({success_rate:.1f}% success rate)"
+        )
+    click.echo(f"  Avg cost per succeeded instance: ${avg_cost:.6f}")
+    click.echo(f"  Pending gate approvals:          {pending_gates}")
+    click.echo(f"  Last event:                      {last_event_ts}")
+
+
+@main.command()
 @click.argument("instance_id")
 @click.option("--db", default="loom.db", help="Path to the SQLite store.")
 def status(instance_id: str, db: str) -> None:
