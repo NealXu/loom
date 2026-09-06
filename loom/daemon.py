@@ -21,14 +21,17 @@ logger = logging.getLogger(__name__)
 class LoomDaemon:
     """Async daemon that orchestrates instance execution."""
 
+    TIER_PRIORITY = {"critical": 0, "heavy": 1, "tooling": 2, "bulk": 3}
+
     def __init__(self, store, runner, tick_interval: float = 2.0,
                  templates_dir: str | None = None, schedule_jobs: list[dict] | None = None,
-                 vault_dir: str | None = None):
+                 vault_dir: str | None = None, max_concurrent: int = 2):
         self.store = store
         self.runner = runner
         self.tick_interval = tick_interval
         self.templates_dir = templates_dir
         self.vault_dir = vault_dir
+        self.max_concurrent = max_concurrent
         self.scheduler = None
         if schedule_jobs:
             from loom.core.schedule import CronScheduler
@@ -66,31 +69,55 @@ class LoomDaemon:
         running = self.store.list_instances_by_status("running")
         waiting = self.store.list_instances_by_status("waiting_gate")
 
-        # Process waiting_gate instances: check for approved gates, then step
-        for inst in waiting:
-            await self._check_gate_resumption(inst.id)
-            # After checking gates, step the instance (may resume if gate approved)
-            try:
-                status = await step_instance(self.store, inst.id, self.runner, vault_dir=self.vault_dir)
-                logger.debug(f"Instance {inst.id} -> {status}")
-            except Exception as e:
-                logger.error(f"Error processing instance {inst.id}: {e}")
+        # Order by tier priority (critical first) — soft priority, not strict sequencing
+        waiting.sort(key=self._tier_sort_key)
+        active = sorted(pending + running, key=self._tier_sort_key)
 
-        # Process pending and running instances
-        for inst in pending + running:
-            try:
-                status = await step_instance(self.store, inst.id, self.runner, vault_dir=self.vault_dir)
-                logger.debug(f"Instance {inst.id} -> {status}")
-            except Exception as e:
-                logger.error(f"Error processing instance {inst.id}: {e}")
-                # Mark as failed to prevent infinite retries
+        sem = asyncio.Semaphore(self.max_concurrent)
+
+        async def _step_with_sem(inst):
+            async with sem:
                 try:
-                    record_transition(self.store, "instance", inst.id,
-                                     self.store.get_instance(inst.id).status, "failed")
-                    self.store.update_instance_status(inst.id, "failed",
-                                                      finished_at=datetime.now().isoformat())
-                except Exception:
-                    pass
+                    status = await step_instance(
+                        self.store, inst.id, self.runner, vault_dir=self.vault_dir
+                    )
+                    logger.debug(f"Instance {inst.id} -> {status}")
+                except Exception as e:
+                    logger.error(f"Error processing instance {inst.id}: {e}")
+                    # Mark as failed to prevent infinite retries
+                    try:
+                        record_transition(
+                            self.store, "instance", inst.id,
+                            self.store.get_instance(inst.id).status, "failed",
+                        )
+                        self.store.update_instance_status(
+                            inst.id, "failed",
+                            finished_at=datetime.now().isoformat(),
+                        )
+                    except Exception:
+                        pass
+
+        # Process waiting_gate instances: check for approved gates, then step concurrently
+        async def _step_waiting(inst):
+            await self._check_gate_resumption(inst.id)
+            await _step_with_sem(inst)
+
+        if waiting:
+            await asyncio.gather(*[_step_waiting(inst) for inst in waiting])
+
+        # Process pending and running instances concurrently
+        if active:
+            await asyncio.gather(*[_step_with_sem(inst) for inst in active])
+
+    def _tier_sort_key(self, inst) -> int:
+        """Return the highest-priority tier among the instance's nodes (lower = higher priority)."""
+        try:
+            nodes = self.store.list_nodes(inst.id)
+        except Exception:
+            return 999
+        if not nodes:
+            return 999
+        return min(self.TIER_PRIORITY.get(n.tier, 99) for n in nodes)
 
     async def _crash_recovery(self):
         """Reset running nodes/instances to pending (crash recovery)."""
