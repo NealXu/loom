@@ -28,11 +28,20 @@ Loom 是一个两层图系统，将知识图谱（SQLite）与 DAG 编排结合�
 ✅ P1-D 适配器重构 + 超时             ✅ P4-D Evolver LLM 通道
 ✅ P2-K Event→template 派发          ✅ P4-E 产物落 Vault
 ✅ P2-L Cron 调度器
-✅ P2-E Store 写方法                 运维
-✅ P2-F 剩余模板（5/5）              ✅ Git 远程已建（github.com/NealXu/loom, public, CI passing）
-✅ P2-G 加固 + 配置贯通              ✅ cc/codex/pi 真实 schema 已验证（dsh 不使用）
-✅ P3-H 工程化（CI + 入口验证）       ✅ Web DAG 可视化（Cytoscape + API 增强）
-✅ P3-J Cost 解析（真实 claude 冒烟）
+✅ P2-E Store 写方法                 生产就绪（P5）
+✅ P2-F 剩余模板（5/5）              ✅ P5-A Vault 启用 + e2e 验证
+✅ P2-G 加固 + 配置贯通              ✅ P5-B SSE 前端 EventSource 消费
+✅ P3-H 工程化（CI + 入口验证）       ✅ P5-C Evolver LLM 冒烟
+✅ P3-J Cost 解析（真实 claude 冒烟） ✅ P5-D 多实例并发执行（tier 优先）
+                                     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+运维                                  增强（P6）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Git 远程已建                       ✅ P6-A DAG 布局 dagre + CDN vendoring
+   (github.com/NealXu/loom,          ✅ P6-B Web token 认证
+    public, CI passing)              ✅ P6-C 多用户 owner 过滤
+✅ cc/codex/pi 真实 schema 验证       ✅ P6-D Webhook 通知渠道
+   (dsh 不使用)                      ✅ P6-E 模板市场 loom install
+✅ Web DAG 可视化
 ```
 
 ## 架构全景
@@ -91,13 +100,13 @@ Loom 是一个两层图系统，将知识图谱（SQLite）与 DAG 编排结合�
 
 | 指标 | 数值 |
 |------|------|
-| 提交数 | 59（28 实现 + P0-P4 各批 + 文档 + 修复 + DAG 可视化） |
-| 测试数 | **220 passed** |
-| 代码行数 | `loom/` ~3300 行，`tests/` ~4100 行 |
-| CLI 命令 | 13（run/list/status/stats/health/cost/history/audit/serve/gate/digest/evolve） |
-| 模板数 | 5 内置 + `discovered` 候选通道 |
+| 提交数 | ~65（P0-P6 全阶段） |
+| 测试数 | **265 passed**（220 基线 + 45 P5/P6） |
+| 代码行数 | `loom/` ~3600 行，`tests/` ~4800 行 |
+| CLI 命令 | 14（+install） |
+| 模板数 | 5 内置 + `discovered` 候选通道 + 远程安装 |
 | 适配器 | 5（cc/pi/codex/dsh/fake） |
-| 配置节 | `loom.toml` 4 节：`[routing]` `[budget]` `[vault]` `[[schedule.jobs]]` |
+| 配置节 | `loom.toml` 7 节：`[routing]` `[budget]` `[vault]` `[[schedule.jobs]]` `[web]` `[user]` `[[notifications.webhooks]]` |
 
 ## 关键设计决策
 
@@ -109,9 +118,12 @@ Loom 是一个两层图系统，将知识图谱（SQLite）与 DAG 编排结合�
 | 已完成节点追踪 | 从 DB 查 `status='succeeded'` | daemon 重启不丢状态 |
 | 成本解析 | JSON/JSONL 通用 walker（取最大累计记录） | 覆盖 claude/codex/pi 三种形态 |
 | 门禁流 | `waiting_gate` 状态 + daemon tick 恢复 | 无需轮询，事件驱动 |
-| DAG 可视化 | Cytoscape.js (CDN) + 内置 cose 布局 | compound nodes 天然支持 instance 分组；无需 build step；dagre 因 graphlib CDN 问题暂搁置 |
+| DAG 可视化 | Cytoscape.js (vendor/) + dagre 拓扑布局 | compound nodes 支持 instance 分组；本地 vendored 消除 CDN 依赖 |
 | 产物持久化 | `<vault>/<instance>/<node>.md` + `create_artifact` | best-effort，永不拖垮节点 |
 | Evolver | LLM 归纳 → YAML 抽取 → `load_template` 校验 → 落盘 | LLM 失败自动回退确定性提案 |
+| 并发执行 | asyncio.gather + Semaphore(max_concurrent=2) + tier 排序 | 单线程 asyncio 内安全并发；tier 保证 critical 优先 |
+| 通知系统 | Webhook POST + daemon 内触发 | 零外部依赖；失败日志不阻断流程 |
+| 模板市场 | `loom install <url|path>` + overwrite 保护 | 社区共享入口；--force 安全覆盖 |
 
 ## 使用场景
 
@@ -162,39 +174,31 @@ loom evolve --runner cc --out loom/templates/discovered
 # 从成功簇自动产出候选模板 → 人工审查 → 纳入模板库
 ```
 
-## 剩余工作
+## 状态总结
 
-### 已完成（本轮）
+### P0-P6 全部闭环
 
-1. ✅ **Git 远程**：`github.com/NealXu/loom` (public)，CI 已 passing（lint + test on 3.12/3.13）。
-2. ✅ **真实 schema 验证**：cc (v2.1.247) / codex (v0.153.2) / pi (v0.84.4) 均已实际执行并抓取输出，`cost_parsing.py` 已修复以适配真实字段名（pi 的 `totalTokens`/`input`/`output` + 嵌套 `cost.total`），15 个 cost 相关测试全部通过。dsh 不使用，适配器保留但不验证。
-3. ✅ **Web DAG 可视化**：Cytoscape.js 交互式 SVG 图，节点按 instance 分组，状态着色，有向箭头，点击详情；API `/api/graph` 返回增强字段（tier/gate/spec/budget_tokens）。
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| P0 | ✅ | Daemon + 门禁 |
+| P1 | ✅ | 路由 + 预算 + 超时 |
+| P2 | ✅ | 派发 + 调度 + 模板 |
+| P3 | ✅ | CI + 成本解析 |
+| P4 | ✅ | Web + Evolver + Vault |
+| P5 | ✅ | Vault 启用 + SSE + Evolver 冒烟 + 并发 |
+| P6 | ✅ | DAG vendoring + 认证 + 多用户 + 通知 + 模板市场 |
 
-### 下一步计划
+### 运维事项
 
-#### P5 — 生产就绪（2-3 周）
+1. ✅ **Git 远程**：`github.com/NealXu/loom` (public)，CI passing (3.12+3.13)。
+2. ✅ **真实 schema 验证**：cc/codex/pi 已验证，dsh 不使用。
+3. ✅ **CDN vendoring**：Cytoscape/graphlib/dagre 本地化，零外部依赖。
 
-| # | 工作 | 说明 | 预估 |
-|---|------|------|------|
-| P5-A | **Vault 实际启用 + 端到端验证** | `loom.toml` 的 `[vault]` 节已预留，取消注释即可启用；需跑一次完整流程验证产物落盘 | 0.5 天 |
-| P5-B | **SSE 前端消费** | 后端 `/api/events/stream` 已就位，前端未连接；实现 EventSource 自动刷新面板 | 1 天 |
-| P5-C | **Evolver LLM 冒烟** | `loom evolve --runner cc` 需 API key + 少量费用；验证从成功簇产出候选模板 | 0.5 天 |
-| P5-D | **多实例并发执行** | 当前 daemon 串行执行节点；可扩展为按 tier 并发（critical 优先） | 2 天 |
+### 未来增强（可选 backlog）
 
-#### P6 — 增强（按需）
-
-| # | 工作 | 说明 |
-|---|------|------|
-| P6-A | **多用户支持** | `owner` 字段全程 'me'，可扩展为多用户过滤/隔离 |
-| P6-B | **DAG 布局增强** | 当前使用内置 cose 布局；可集成 dagre（需解决 graphlib CDN 问题）实现拓扑排序布局 |
-| P6-C | **Web 认证** | FastAPI 加 JWT/session 认证，保护 API 端点 |
-| P6-D | **通知渠道** | 实例完成/失败时发送通知（邮件/Slack/微信） |
-| P6-E | **模板市场** | 社区共享模板，`loom install <template-url>` |
-
-#### 技术债
-
-| # | 工作 | 说明 |
-|---|------|------|
+- **技术债**：Store 裸 SQL 统一收敛 → Store 方法；mypy 类型注解扫描
+- **体验**：前端 login 表单（配合 /api/auth）；SSE 实时 DAG 增量更新
+- **平台**：多租户隔离（owner 贯穿 DB 查询）；模板版本管理
 | T1 | **CDN 降级** | Cytoscape CDN 不可达时 fallback 到文本模式；或 vendoring 到 `static/vendor/` |
 | T2 | **Store 抽象统一** | `/api/graph` 已用 `store.get_graph()`，但 `/api/instances/{id}` 仍用裸 SQL |
 | T3 | **类型注解补全** | 部分函数缺少类型提示，可用 mypy 扫描 |

@@ -6,15 +6,20 @@ A two-layer graph system for automating daily work. Loom combines a knowledge gr
 
 - **DAG scheduling** with topological ordering and dependency resolution
 - **Persistent daemon** (`loom serve`) with async tick loop; survives restarts with crash recovery and persisted schedule state
+- **Concurrent execution** with tier priority (critical → heavy → tooling → bulk) and bounded parallelism
 - **Event-driven dispatch**: triggers (hooks/inbox/cron) → template matching → automatic instance creation
 - **Tier-based runner routing** with fallback chains and binary-missing degradation (`--runner auto`)
 - **Cost tracking**: real token/cost parsed from JSON/JSONL agent output (claude, codex, pi); hard budget enforcement at `node.budget_tokens`
 - **Interactive gate approvals** for high-risk operations via CLI (`loom gate approve/reject`) and Web panel
 - **Timeout protection**: hung agent CLI processes are killed after configurable timeout
 - **Vault artifact persistence**: successful node outputs written to Vault markdown + registered as Artifacts
-- **Template-driven workflows** defined in YAML with parameterized specs (5 built-in + `loom evolve` LLM discovery)
+- **Template-driven workflows** defined in YAML with parameterized specs (5 built-in + `loom evolve` LLM discovery + `loom install` marketplace)
 - **Multiple triggers**: HTTP hooks, cron scheduler, inbox file watchers, CLI, and `POST /api/run`
 - **Web UI** with FastAPI + SSE real-time event stream, pagination, and gate approval panel
+- **Interactive DAG visualization** (Cytoscape.js, locally vendored, dagre topological layout)
+- **Token authentication** protecting all API endpoints (configurable via `LOOM_AUTH_TOKEN` or `loom.toml`)
+- **Multi-user owner filtering** (`?owner=` query param across all API endpoints)
+- **Webhook notifications** on instance succeeded/failed transitions
 - **Full audit trail** with event logging for every state transition
 
 ## Quick Start
@@ -152,6 +157,7 @@ Nodes are assigned tiers that influence scheduling priority:
 | `loom gate list/approve/reject` | Interactive gate approval commands |
 | `loom digest` | Render morning digest (instance rollup + cost red line) |
 | `loom evolve` | Discover recurring patterns and write candidate templates (LLM channel) |
+| `loom install <url\|path>` | Install a community template from URL or local path (`--out`, `--force`) |
 
 ### Run Options
 
@@ -186,12 +192,15 @@ The Web UI provides:
 | `/api/gates/{node_id}/reject` | POST | Reject a gated node |
 | `/api/run` | POST | Trigger instance creation (daemon executes) |
 | `/api/events/stream` | GET | SSE real-time event stream |
+| `/api/auth` | POST | Validate authentication token |
 
 **Frontend** at `loom/web/static/index.html`:
-- Instance list with cost breakdown
+- Instance list with cost breakdown + owner filtering
 - Pending gates panel with approve/reject buttons
-- Real-time event stream (SSE)
-- **Interactive DAG visualization** (Cytoscape.js): nodes grouped by instance, status-colored, directed edges, click for detail
+- Real-time event stream (SSE) with auto-refresh (EventSource + 2s debounce)
+- **Interactive DAG visualization** (Cytoscape.js, locally vendored, dagre topological layout): nodes grouped by instance, status-colored, directed edges, click for detail
+
+**Authentication**: all `/api/` endpoints protected by bearer token when `LOOM_AUTH_TOKEN` is set (or `loom.toml` `[web] auth_token`). Root `/` and `/api/auth` are public.
 
 ## Templates
 
