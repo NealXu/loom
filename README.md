@@ -251,7 +251,7 @@ nodes:
 ### Running Tests
 
 ```bash
-# Run all 206 tests
+# Run all 220 tests
 pytest
 
 # Run with verbose output
@@ -294,10 +294,10 @@ loom/
   evolver/
     evolve.py         # LLM-driven template discovery (evolve + loom evolve command)
   web/
-    app.py            # FastAPI REST API (instances, gates, run, SSE stream)
+    app.py            # FastAPI REST API (instances, gates, run, SSE stream, DAG graph)
     sse.py            # Server-Sent Events event stream
     static/
-      index.html      # Web UI frontend (gates panel, SSE, graph viz)
+      index.html      # Web UI (gates panel, SSE, Cytoscape DAG visualization)
   templates/
     handoff-refresh.yaml
     feature-loop.yaml
@@ -305,7 +305,7 @@ loom/
     content-pipeline.yaml
     ops-deploy.yaml
 tests/
-  30 test files       # 206 tests total
+  32 test files       # 220 tests total
 ```
 
 ### Dependencies
