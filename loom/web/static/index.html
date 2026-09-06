@@ -62,7 +62,9 @@
   /* Cytoscape DAG */
   #cytoscape-container canvas { outline: none; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.3/dist/cytoscape.min.js"></script>
+<script src="vendor/cytoscape.min.js"></script>
+<script src="vendor/graphlib.min.js"></script>
+<script src="vendor/cytoscape-dagre.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -375,6 +377,10 @@
 
     if (cy) { cy.destroy(); cy = null; }
 
+    if (typeof cytoscapeDagre !== "undefined" && typeof cytoscape.use === "function") {
+      cytoscape.use(cytoscapeDagre);
+    }
+
     cy = cytoscape({
       container: container,
       elements: elements,
@@ -433,12 +439,11 @@
         }
       ],
       layout: {
-        name: "cose",
-        animate: false,
-        padding: 30,
-        nodeRepulsion: 400000,
-        idealEdgeLength: 100,
-        edgeElasticity: 100
+        name: "dagre",
+        rankDir: "TB",
+        nodeSep: 40,
+        rankSep: 80,
+        padding: 30
       }
     });
 

@@ -16,12 +16,6 @@ def test_cytoscape_cdn_loaded():
     assert re.search(r'<script[^>]*src=["\'][^"\']*cytoscape[^"\']*["\']', html, re.IGNORECASE)
 
 
-def test_cose_layout_configured():
-    """HTML JS uses 'cose' layout (built-in, no external dagre/graphlib needed)."""
-    html = _read_html()
-    assert '"cose"' in html or "'cose'" in html
-
-
 def test_cytoscape_container_exists():
     """HTML has a #cytoscape-container div for the graph to render into."""
     html = _read_html()
