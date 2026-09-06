@@ -17,7 +17,9 @@ red_line_usd = 5.0
 # When set, each successful node's output is written to
 # <path>/<instance_id>/<node_id>.md and registered as an Artifact.
 # Leave empty to disable artifact persistence.
-# path = "D:/Vaults/loom"
+# Point this at a personal knowledge vault (e.g. "D:/Vaults/loom") to
+# promote outputs outside the project; ./vault_out is the project-local default.
+path = "./vault_out"
 
 # Periodic jobs (P2-L). The daemon fires each as a cron event every
 # `every_seconds`; the dispatcher targets the named template directly.
