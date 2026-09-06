@@ -2,7 +2,7 @@
 
 > 日期：2026-09-06  
 > 分支：master @ `60abf94`  
-> 测试：201 passed  
+> 测试：206 passed  
 > 状态：**全部设计功能 + 增强面已闭环**
 
 ## 项目愿景
@@ -29,8 +29,8 @@ Loom 是一个两层图系统，将知识图谱（SQLite）与 DAG 编排结合�
 ✅ P2-K Event→template 派发          ✅ P4-E 产物落 Vault
 ✅ P2-L Cron 调度器
 ✅ P2-E Store 写方法                 运维
-✅ P2-F 剩余模板（5/5）              ⚠️  Git 远程未建（CI 已就位，待推）
-✅ P2-G 加固 + 配置贯通              ⚠️  Codex/pi 真实 schema 未验证
+✅ P2-F 剩余模板（5/5）              ✅ Git 远程已建（github.com/NealXu/loom, public, CI passing）
+✅ P2-G 加固 + 配置贯通              ✅ cc/codex/pi 真实 schema 已验证（dsh 不使用）
 ✅ P3-H 工程化（CI + 入口验证）
 ✅ P3-J Cost 解析（真实 claude 冒烟）
 ```
@@ -89,8 +89,8 @@ Loom 是一个两层图系统，将知识图谱（SQLite）与 DAG 编排结合�
 
 | 指标 | 数值 |
 |------|------|
-| 提交数 | 51（28 实现 + P0-P4 各批 + 文档） |
-| 测试数 | **201 passed** |
+| 提交数 | 56（28 实现 + P0-P4 各批 + 文档 + 修复） |
+| 测试数 | **206 passed** |
 | 代码行数 | `loom/` ~3300 行，`tests/` ~4100 行 |
 | CLI 命令 | 13（run/list/status/stats/health/cost/history/audit/serve/gate/digest/evolve） |
 | 模板数 | 5 内置 + `discovered` 候选通道 |
@@ -161,10 +161,10 @@ loom evolve --runner cc --out loom/templates/discovered
 
 ## 剩余工作
 
-### 运维（需用户决策）
+### 已完成（本轮）
 
-1. **Git 远程**：CI workflow 已就位（`.github/workflows/ci.yml`），需推 GitHub 才生效。可用 `gh repo create` 创建，需确认仓库名/可见性。
-2. **Codex/pi 真实 schema 验证**：命令形态已按 `--help` 校正（codex 之前 `-p` 是错的），cost 字段名基于常见别名推测。各跑一次真实调用即可确认（会产生少量 API 费用）。
+1. ✅ **Git 远程**：`github.com/NealXu/loom` (public)，CI 已 passing（lint + test on 3.12/3.13）。
+2. ✅ **真实 schema 验证**：cc (v2.1.247) / codex (v0.153.2) / pi (v0.84.4) 均已实际执行并抓取输出，`cost_parsing.py` 已修复以适配真实字段名（pi 的 `totalTokens`/`input`/`output` + 嵌套 `cost.total`），15 个 cost 相关测试全部通过。dsh 不使用，适配器保留但不验证。
 
 ### 增强（按需）
 

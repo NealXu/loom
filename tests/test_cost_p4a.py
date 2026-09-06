@@ -1,7 +1,8 @@
 """P4-A: codex/pi cost adaptation — command shapes + JSONL extraction.
 
 Tests include both synthetic schemas (original P4-A scope) and REAL schemas
-captured live from codex-cli v0.153.2 and pi v0.84.4 on 2026-09-06.
+captured live from codex-cli v0.153.2, pi v0.84.4, and claude v2.1.247
+on 2026-09-06.
 """
 import asyncio
 import json
@@ -150,3 +151,44 @@ def test_real_pi_cost_dict_sum_fallback():
     tokens, usd = extract_cost(out)
     assert tokens == 15
     assert usd == 0.03  # 0.01 + 0.02
+
+
+# ---------------------------------------------------------------------------
+# Real claude schema (captured 2026-09-06 from claude-code v2.1.247)
+# ---------------------------------------------------------------------------
+
+# Real claude `-p <spec> --output-format json` output for "reply with 'hello'"
+# Includes the non-JSON system diagnostic line before the actual JSON result.
+_REAL_CLAUDE_STDOUT = "\n".join([
+    '[claude-code:unrecognized_model] {"model":"dashscope/qwen3.7-plus[1m]"}',
+    json.dumps({
+        "is_error": False,
+        "total_cost_usd": 0.30811,
+        "usage": {
+            "input_tokens": 13797,
+            "cache_creation_input_tokens": 38188,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 18,
+        },
+        "modelUsage": {
+            "dashscope/qwen3.7-plus[1m]": {
+                "inputTokens": 13797,
+                "outputTokens": 18,
+                "costUSD": 0.30811,
+            }
+        },
+        "result": "hello",
+        "type": "result",
+    }),
+])
+
+
+def test_real_claude_extracts_tokens_and_cost():
+    """Real claude output: top-level total_cost_usd + usage.input/output_tokens.
+
+    The non-JSON system diagnostic line is ignored by extract_cost (only lines
+    starting with '{' are parsed as JSON).
+    """
+    tokens, usd = extract_cost(_REAL_CLAUDE_STDOUT)
+    assert tokens == 13797 + 18  # input_tokens + output_tokens
+    assert usd == 0.30811        # total_cost_usd (top-level float)

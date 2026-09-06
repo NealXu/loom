@@ -88,10 +88,10 @@ Four adapter types execute node specs via subprocess with timeout and cost parsi
 
 | Runner | Command | Cost Parsing |
 |--------|---------|--------------|
-| `cc` | `claude -p <spec> --output-format json` | JSON output, `usage` + `total_cost_usd` |
-| `pi` | `pi --mode json -p <spec>` | JSON output, `usage` + `cost_usd` |
-| `codex` | `codex exec --json <spec>` | JSONL events, `token_count` cumulative |
-| `dsh` | `dsh -p <spec>` | No stable JSON surface (documented) |
+| `cc` | `claude -p <spec> --output-format json` | JSON, top-level `total_cost_usd` + `usage.{input,output}_tokens` ✅ verified |
+| `pi` | `pi --mode json -p <spec>` | JSONL, `totalTokens` (camelCase) + nested `cost.total` ✅ verified |
+| `codex` | `codex exec --json <spec>` | JSONL, `usage.{input,output}_tokens`, no cost ✅ verified |
+| `dsh` | `dsh -p <spec>` | Not actively used; adapter retained for future use |
 
 A `fake` runner is also available for testing.
 
@@ -251,7 +251,7 @@ nodes:
 ### Running Tests
 
 ```bash
-# Run all 201 tests
+# Run all 206 tests
 pytest
 
 # Run with verbose output
@@ -305,7 +305,7 @@ loom/
     content-pipeline.yaml
     ops-deploy.yaml
 tests/
-  30 test files       # 201 tests total
+  30 test files       # 206 tests total
 ```
 
 ### Dependencies
