@@ -16,6 +16,7 @@ A two-layer graph system for automating daily work. Loom combines a knowledge gr
 - **Template-driven workflows** defined in YAML with parameterized specs (5 built-in + `loom evolve` LLM discovery + `loom install` marketplace)
 - **Multiple triggers**: HTTP hooks, cron scheduler, inbox file watchers, CLI, and `POST /api/run`
 - **Web UI** with FastAPI + SSE real-time event stream, pagination, and gate approval panel
+- **Sidebar multi-view dashboard** (P7): Dashboard (stats/health KPIs), Run, History, Audit, Cost, Digest, Templates — each backed by a dedicated REST endpoint
 - **Interactive DAG visualization** (Cytoscape.js, locally vendored, dagre topological layout)
 - **Token authentication** protecting all API endpoints (configurable via `LOOM_AUTH_TOKEN` or `loom.toml`)
 - **Multi-user owner filtering** (`?owner=` query param across all API endpoints)
@@ -193,12 +194,22 @@ The Web UI provides:
 | `/api/run` | POST | Trigger instance creation (daemon executes) |
 | `/api/events/stream` | GET | SSE real-time event stream |
 | `/api/auth` | POST | Validate authentication token |
+| `/api/templates` | GET | List available templates from the templates dir (P7) |
+| `/api/stats` | GET | System statistics (instances/nodes by status, events, gates) (P7) |
+| `/api/health` | GET | Health summary (success rate, avg cost, pending gates) (P7) |
+| `/api/audit` | GET | Audit timeline (gate decisions + state transitions, filterable) (P7) |
+| `/api/digest` | GET | Daily digest (totals, success rate, over-budget, recent) (P7) |
+| `/api/cost` | GET | Cost analysis (totals, per-template, per-instance) (P7) |
 
-**Frontend** at `loom/web/static/index.html`:
-- Instance list with cost breakdown + owner filtering
-- Pending gates panel with approve/reject buttons
-- Real-time event stream (SSE) with auto-refresh (EventSource + 2s debounce)
-- **Interactive DAG visualization** (Cytoscape.js, locally vendored, dagre topological layout): nodes grouped by instance, status-colored, directed edges, click for detail
+**Frontend** at `loom/web/static/index.html` — a sidebar-navigated single-page app (P7):
+- **Dashboard**: KPI cards (running/failed/succeeded/pending via `/api/stats` + `/api/health`), instance list with cost breakdown + over-budget red highlight, pending gates panel with approve/reject, real-time SSE refresh, interactive DAG (Cytoscape.js / dagre, status-colored, click for node detail)
+- **Run**: template `<select>` (from `/api/templates`), param inputs with bound labels, runner select, sync/async mode, POST `/api/run`
+- **History**: sortable table (`aria-sort`) with template/status filters, expando rows
+- **Audit**: vertical timeline of gate decisions + state transitions (`/api/audit`)
+- **Cost**: per-template bar chart with over-budget highlight, View-as-Table toggle (`/api/cost`)
+- **Digest**: totals summary + over-budget alert (`/api/digest`)
+- **Templates**: install from URL/path form + installed-templates list (`/api/templates`)
+- Accessibility: SVG nav icons, `aria-label` on icon buttons, bound form labels, `aria-live` toasts, visible focus, `prefers-reduced-motion`; loading/empty states throughout
 
 **Authentication**: all `/api/` endpoints protected by bearer token when `LOOM_AUTH_TOKEN` is set (or `loom.toml` `[web] auth_token`). Root `/` and `/api/auth` are public.
 
@@ -260,7 +271,7 @@ nodes:
 ### Running Tests
 
 ```bash
-# Run all 220 tests
+# Run all tests
 pytest
 
 # Run with verbose output
@@ -314,7 +325,7 @@ loom/
     content-pipeline.yaml
     ops-deploy.yaml
 tests/
-  32 test files       # 220 tests total
+  34 test files       # 317 tests total
 ```
 
 ### Dependencies
