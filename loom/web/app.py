@@ -4,8 +4,9 @@ import json
 import os
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 
@@ -40,17 +41,52 @@ def create_app(store) -> FastAPI:
     """Pure app factory. No uvicorn.run."""
     app = FastAPI(title="Loom", version="0.1.0")
 
+    # --- P6-B: Token authentication -------------------------------------------
+    _auth_token = os.environ.get("LOOM_AUTH_TOKEN") or None
+    app.state.auth_token = _auth_token
+
+    # --- P6-C: Multi-user owner support ---------------------------------------
+    _default_owner = os.environ.get("LOOM_OWNER", "me")
+    app.state.default_owner = _default_owner
+
+    bearer = HTTPBearer(auto_error=False)
+
+    async def verify_auth(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+        """Dependency: require valid bearer token when auth is configured."""
+        token = getattr(app.state, "auth_token", None)
+        if token is None:
+            return None  # no auth configured, allow all
+        if credentials is None or credentials.credentials != token:
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing token")
+        return credentials
+    # --------------------------------------------------------------------------
+
     _INDEX_HTML = Path(__file__).resolve().parent / "static" / "index.html"
 
     @app.get("/")
     def index():
         return FileResponse(str(_INDEX_HTML), media_type="text/html")
 
+    @app.post("/api/auth")
+    def auth_validate(body: dict):
+        """Validate a token (for frontend login forms)."""
+        token = getattr(app.state, "auth_token", None)
+        if token is None:
+            return {"ok": True, "auth_required": False}
+        provided = body.get("token", "")
+        return {"ok": provided == token, "auth_required": True}
+
     @app.get("/api/instances")
-    def list_instances(limit: Optional[int] = None, offset: int = 0):
+    def list_instances(limit: Optional[int] = None, offset: int = 0,
+                       owner: Optional[str] = None, _auth=Depends(verify_auth)):
+        effective_owner = owner if owner is not None else getattr(app.state, "default_owner", "me")
         sql = ("SELECT id, template_id, title, status, cost_usd, cost_tokens, "
-               "created_at, finished_at FROM instances ORDER BY created_at DESC")
+               "created_at, finished_at FROM instances")
         params: list = []
+        if effective_owner != "*":
+            sql += " WHERE owner = ?"
+            params.append(effective_owner)
+        sql += " ORDER BY created_at DESC"
         if limit is not None:
             sql += " LIMIT ? OFFSET ?"
             params += [limit, offset]
@@ -58,7 +94,7 @@ def create_app(store) -> FastAPI:
         return [_row_to_instance_summary(r) for r in rows]
 
     @app.get("/api/instances/{instance_id}")
-    def get_instance(instance_id: str):
+    def get_instance(instance_id: str, _auth=Depends(verify_auth)):
         row = store.conn.execute(
             "SELECT id, template_id, title, status, cost_usd, cost_tokens, "
             "created_at, finished_at, blocked_reason, params "
@@ -92,22 +128,33 @@ def create_app(store) -> FastAPI:
         return {"instance": instance, "nodes": nodes, "edges": edges}
 
     @app.get("/api/graph")
-    def get_graph():
-        return store.get_graph()
+    def get_graph(owner: Optional[str] = None, _auth=Depends(verify_auth)):
+        data = store.get_graph()
+        effective_owner = owner if owner is not None else getattr(app.state, "default_owner", "me")
+        if effective_owner == "*":
+            return data
+        # Filter graph to only the requested owner's instances/nodes/edges.
+        owner_rows = store.conn.execute("SELECT id, owner FROM instances").fetchall()
+        allowed_ids = {r["id"] for r in owner_rows if r["owner"] == effective_owner}
+        data["instances"] = [i for i in data["instances"] if i["id"] in allowed_ids]
+        data["nodes"] = [n for n in data["nodes"] if n["instance_id"] in allowed_ids]
+        data["edges"] = [e for e in data["edges"] if e["instance_id"] in allowed_ids]
+        return data
 
     # -----------------------------------------------------------------------
     # P0-B: Gate API endpoints
     # -----------------------------------------------------------------------
 
     @app.get("/api/gates", response_model=list[GateSummary])
-    def get_gates(instance_id: Optional[str] = None):
+    def get_gates(instance_id: Optional[str] = None, owner: Optional[str] = None,
+                  _auth=Depends(verify_auth)):
         """List pending gate approvals."""
         from loom.core.gate import get_pending_gates
         gates = get_pending_gates(store, instance_id)
         return gates
 
     @app.post("/api/gates/{node_id}/approve", response_model=GateDecisionResult)
-    def approve_gate(node_id: str, body: Optional[GateRequestBody] = None):
+    def approve_gate(node_id: str, body: Optional[GateRequestBody] = None, _auth=Depends(verify_auth)):
         """Approve a gated node."""
         from loom.core.gate import GateDecision, record_gate_decision
 
@@ -128,7 +175,7 @@ def create_app(store) -> FastAPI:
         return GateDecisionResult(approved=True, node_id=node_id)
 
     @app.post("/api/gates/{node_id}/reject", response_model=GateDecisionResult)
-    def reject_gate(node_id: str, body: Optional[GateRequestBody] = None):
+    def reject_gate(node_id: str, body: Optional[GateRequestBody] = None, _auth=Depends(verify_auth)):
         """Reject a gated node."""
         from loom.core.gate import GateDecision, record_gate_decision
 
@@ -153,7 +200,7 @@ def create_app(store) -> FastAPI:
     # -----------------------------------------------------------------------
 
     @app.post("/api/run", status_code=201)
-    def run_instance(body: RunRequestBody):
+    def run_instance(body: RunRequestBody, _auth=Depends(verify_auth)):
         """Instantiate a template into a pending instance (daemon executes it)."""
         from pathlib import Path
         from loom.core.loader import load_template, instantiate
@@ -179,7 +226,7 @@ def create_app(store) -> FastAPI:
         return {"instance_id": instance.id, "status": instance.status}
 
     @app.get("/api/events/stream")
-    async def stream_events():
+    async def stream_events(_auth=Depends(verify_auth)):
         """Server-Sent Events: new rows in the events table."""
         from starlette.responses import StreamingResponse
         from loom.web.sse import event_stream

@@ -28,3 +28,18 @@ path = "./vault_out"
 # template = "handoff-refresh"
 # every_seconds = 86400
 # params = { project_path = "D:/Codes/innovation/loom" }
+
+[web]
+# Set auth_token to protect API endpoints with bearer token auth.
+# Also configurable via LOOM_AUTH_TOKEN environment variable.
+# auth_token = "your-secret-here"
+
+[user]
+# Default owner for new instances. Also configurable via LOOM_OWNER env var.
+# owner = "me"
+
+# Webhook notifications (P6-D). Fire on instance state transitions
+# (succeeded, failed). Uncomment and configure to enable.
+# [[notifications.webhooks]]
+# url = "https://hooks.slack.com/services/..."
+# secret = ""  # optional shared secret for HMAC verification
