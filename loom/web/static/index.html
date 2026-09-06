@@ -7,21 +7,60 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; line-height: 1.5; }
-  #app { max-width: 1200px; margin: 0 auto; padding: 1rem; }
-  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; color: #f8fafc; }
+
+  /* Focus & a11y */
+  :focus { outline: 2px solid #3b82f6; outline-offset: 2px; }
+  :focus:not(:focus-visible) { outline: none; }
+  :focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* App shell */
+  .app-shell { display: flex; min-height: 100vh; }
+
+  /* Sidebar nav */
+  .sidebar {
+    width: 220px; background: #1a1f2e; border-right: 1px solid #334155;
+    padding: 1rem 0; flex-shrink: 0; display: flex; flex-direction: column;
+  }
+  .sidebar-brand { padding: 0 1rem 1rem; border-bottom: 1px solid #334155; margin-bottom: 0.5rem; }
+  .sidebar-brand h1 { font-size: 1.25rem; color: #f8fafc; }
+  .sidebar-brand span { font-size: 0.75rem; color: #64748b; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.6rem 1rem; cursor: pointer; color: #94a3b8;
+    border: none; background: none; width: 100%; text-align: left;
+    font-size: 0.9rem; font-family: inherit; transition: background 0.15s, color 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover { background: #252d3d; color: #e2e8f0; }
+  .nav-item.active { background: #1e293b; color: #3b82f6; border-left-color: #3b82f6; }
+  .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  /* Main content */
+  .main-content { flex: 1; padding: 1.5rem; overflow-y: auto; max-width: 1200px; }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  /* Status bar */
   #status { font-size: 0.85rem; color: #94a3b8; margin-bottom: 1rem; }
 
-  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; }
-  @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
-
-  .panel { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; }
+  /* Panels */
+  .panel { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
   .panel h2 { font-size: 1rem; color: #cbd5e1; margin-bottom: 0.75rem; border-bottom: 1px solid #334155; padding-bottom: 0.5rem; }
+  .panel h3 { font-size: 0.9rem; color: #93c5fd; margin-bottom: 0.5rem; }
 
-  /* Instance list */
-  .instance-item { padding: 0.5rem 0; border-bottom: 1px solid #1a2332; }
-  .instance-item:last-child { border-bottom: none; }
-  .instance-title { font-weight: 600; font-size: 0.9rem; color: #e2e8f0; }
-  .instance-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; font-size: 0.8rem; }
+  /* Layout grid */
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1rem; }
+  @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } .sidebar { width: 60px; } .nav-label { display: none; } }
 
   /* Badges */
   .badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
@@ -32,18 +71,29 @@
   .badge-blocked  { background: #4a1d5f; color: #d8b4fe; }
   .badge-default  { background: #334155; color: #94a3b8; }
 
+  /* Instance list */
+  .instance-item { padding: 0.5rem 0; border-bottom: 1px solid #1a2332; }
+  .instance-item:last-child { border-bottom: none; }
+  .instance-title { font-weight: 600; font-size: 0.9rem; color: #e2e8f0; }
+  .instance-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; font-size: 0.8rem; }
+
   .cost { color: #94a3b8; font-variant-numeric: tabular-nums; }
   .cost-over-budget { color: #f87171; font-weight: 700; }
 
-  /* Graph panel */
-  .instance-group { margin-bottom: 1rem; }
-  .instance-group h3 { font-size: 0.9rem; color: #93c5fd; margin-bottom: 0.5rem; }
-  .node { display: inline-flex; align-items: center; padding: 0.3rem 0.6rem; margin: 0.2rem; border-radius: 6px; background: #334155; font-size: 0.8rem; border: 1px solid #475569; }
-  .node-kind { color: #a78bfa; margin-right: 0.4rem; font-size: 0.7rem; text-transform: uppercase; }
-  .edge-list { font-size: 0.75rem; color: #64748b; margin-top: 0.4rem; }
-  .edge-list span { display: inline-block; margin-right: 0.6rem; }
-  .arrow { color: #64748b; }
+  /* KPI cards */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+  .kpi-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; text-align: center; }
+  .kpi-value { font-size: 1.75rem; font-weight: 700; color: #f8fafc; }
+  .kpi-label { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+  .kpi-running .kpi-value { color: #3b82f6; }
+  .kpi-failed .kpi-value { color: #ef4444; }
+  .kpi-success .kpi-value { color: #22c55e; }
+  .kpi-pending .kpi-value { color: #eab308; }
 
+  /* Graph */
+  #cytoscape-container canvas { outline: none; }
+
+  /* Error / empty */
   .error-msg { background: #7f1d1d; color: #fca5a5; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; }
   .empty-msg { color: #64748b; font-style: italic; padding: 1rem 0; }
 
@@ -59,36 +109,370 @@
   .gate-btn-reject { background: #7f1d1d; color: #fca5a5; }
   .gate-btn-reject:hover { background: #991b1b; }
 
-  /* Cytoscape DAG */
-  #cytoscape-container canvas { outline: none; }
+  /* Skeleton loading */
+  .skeleton { background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%); background-size: 200% 100%; animation: skeleton-shimmer 1.5s infinite; border-radius: 4px; height: 1.5rem; margin-bottom: 0.5rem; }
+  @keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  .skeleton-lg { height: 3rem; }
+
+  /* Form elements */
+  .form-group { margin-bottom: 1rem; }
+  .form-group label { display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 0.3rem; font-weight: 600; }
+  .form-group select, .form-group input, .form-group textarea {
+    width: 100%; padding: 0.5rem 0.75rem; background: #0f1117; border: 1px solid #334155;
+    border-radius: 6px; color: #e2e8f0; font-size: 0.9rem; font-family: inherit;
+  }
+  .form-group select:focus, .form-group input:focus, .form-group textarea:focus { border-color: #3b82f6; }
+  .form-group .radio-group { display: flex; gap: 1rem; margin-top: 0.3rem; }
+  .form-group .radio-group label { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 400; cursor: pointer; }
+  .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-primary:disabled { background: #475569; cursor: not-allowed; }
+  .btn-secondary { background: #334155; color: #e2e8f0; }
+  .btn-secondary:hover { background: #475569; }
+
+  /* Table */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .data-table th { text-align: left; padding: 0.5rem 0.75rem; background: #0f1117; color: #94a3b8; border-bottom: 2px solid #334155; cursor: pointer; user-select: none; white-space: nowrap; }
+  .data-table th:hover { color: #e2e8f0; }
+  .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #1a2332; color: #e2e8f0; }
+  .data-table tbody tr:hover { background: #252d3d; }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: flex-end; }
+  .filter-bar .form-group { margin-bottom: 0; min-width: 150px; }
+
+  /* Timeline */
+  .timeline-list { position: relative; padding-left: 1.5rem; }
+  .timeline-list::before { content: ''; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: #334155; }
+  .timeline-entry { position: relative; margin-bottom: 1rem; padding: 0.75rem; background: #0f1117; border-radius: 6px; border: 1px solid #334155; }
+  .timeline-entry::before { content: ''; position: absolute; left: -1.5rem; top: 1rem; width: 10px; height: 10px; border-radius: 50%; background: #3b82f6; border: 2px solid #0f1117; margin-left: 2px; }
+  .timeline-time { font-size: 0.75rem; color: #64748b; }
+  .timeline-text { font-size: 0.85rem; color: #e2e8f0; margin-top: 0.25rem; }
+
+  /* Cost chart */
+  .cost-chart-container { background: #0f1117; border: 1px solid #334155; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; min-height: 300px; }
+  .cost-bar-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .cost-bar-label { width: 120px; font-size: 0.8rem; color: #94a3b8; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cost-bar-track { flex: 1; height: 24px; background: #1e293b; border-radius: 4px; overflow: hidden; }
+  .cost-bar-fill { height: 100%; background: #3b82f6; border-radius: 4px; transition: width 0.3s; }
+  .cost-bar-fill.over-budget { background: #ef4444; }
+  .cost-bar-value { width: 80px; font-size: 0.8rem; color: #e2e8f0; }
+
+  /* Toast */
+  .toast-container { position: fixed; top: 1rem; right: 1rem; z-index: 9999; }
+  .toast { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; font-size: 0.85rem; animation: toast-in 0.3s ease; max-width: 360px; }
+  .toast-success { background: #065f46; color: #6ee7b7; border: 1px solid #10b981; }
+  .toast-error { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+  .toast-info { background: #1e3a5f; color: #93c5fd; border: 1px solid #3b82f6; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Budget alert */
+  .budget-alert { background: #7f1d1d; border: 1px solid #ef4444; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+  .budget-alert svg { width: 20px; height: 20px; stroke: #fca5a5; fill: none; stroke-width: 2; flex-shrink: 0; }
+  .budget-alert-text { color: #fca5a5; font-size: 0.85rem; font-weight: 600; }
+
+  /* Spinner */
+  .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Installed templates list */
+  .template-card { background: #0f1117; border: 1px solid #334155; border-radius: 6px; padding: 0.75rem; margin-bottom: 0.5rem; }
+  .template-card-name { font-weight: 600; color: #e2e8f0; font-size: 0.9rem; }
+  .template-card-desc { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+
+  /* Digest */
+  .digest-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+  .digest-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; }
+  .digest-card-label { font-size: 0.8rem; color: #94a3b8; }
+  .digest-card-value { font-size: 1.5rem; font-weight: 700; color: #f8fafc; margin-top: 0.25rem; }
 </style>
 <script src="vendor/cytoscape.min.js"></script>
 <script src="vendor/graphlib.min.js"></script>
 <script src="vendor/cytoscape-dagre.min.js"></script>
 </head>
 <body>
-<div id="app">
-  <h1>Loom</h1>
-  <div id="status">Loading...</div>
+<div id="app" class="app-shell">
 
-  <div class="layout">
-    <div id="instances" class="panel">
-      <h2>Instances</h2>
+  <!-- Sidebar navigation -->
+  <nav aria-label="Main navigation" class="sidebar">
+    <div class="sidebar-brand">
+      <h1>Loom</h1>
+      <span>Workflow Orchestrator</span>
     </div>
-    <div id="gates" class="panel">
-      <h2>Pending Gates</h2>
-    </div>
-  </div>
-  <div id="graph" class="panel" style="margin-top: 1rem;">
-    <h2>Graph</h2>
-    <div id="cytoscape-container" style="width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;"></div>
-    <div id="node-detail" style="display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
-      <h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3>
-      <div id="node-detail-content"></div>
-      <button id="node-detail-close" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>
-    </div>
-  </div>
+
+    <button class="nav-item active" data-view="dashboard" aria-label="Dashboard">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      <span class="nav-label">Dashboard</span>
+    </button>
+    <button class="nav-item" data-view="run" aria-label="Run">
+      <svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+      <span class="nav-label">Run</span>
+    </button>
+    <button class="nav-item" data-view="history" aria-label="History">
+      <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span class="nav-label">History</span>
+    </button>
+    <button class="nav-item" data-view="audit" aria-label="Audit">
+      <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span class="nav-label">Audit</span>
+    </button>
+    <button class="nav-item" data-view="cost" aria-label="Cost">
+      <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12V4m0 16v2M5 12h14"/></svg>
+      <span class="nav-label">Cost</span>
+    </button>
+    <button class="nav-item" data-view="digest" aria-label="Digest">
+      <svg viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="nav-label">Digest</span>
+    </button>
+    <button class="nav-item" data-view="templates" aria-label="Templates">
+      <svg viewBox="0 0 24 24"><path d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm10 0a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z"/></svg>
+      <span class="nav-label">Templates</span>
+    </button>
+  </nav>
+
+  <!-- Main content area -->
+  <main class="main-content">
+    <div id="status">Loading...</div>
+
+    <!-- ============================================================ -->
+    <!-- Dashboard view -->
+    <!-- ============================================================ -->
+    <section id="view-dashboard" class="view active">
+      <div class="kpi-row" id="kpi-cards">
+        <div class="kpi-card kpi-running">
+          <div class="kpi-value" id="kpi-running">--</div>
+          <div class="kpi-label">Running</div>
+        </div>
+        <div class="kpi-card kpi-failed">
+          <div class="kpi-value" id="kpi-failed">--</div>
+          <div class="kpi-label">Failed</div>
+        </div>
+        <div class="kpi-card kpi-success">
+          <div class="kpi-value" id="kpi-success">--</div>
+          <div class="kpi-label">Succeeded</div>
+        </div>
+        <div class="kpi-card kpi-pending">
+          <div class="kpi-value" id="kpi-pending">--</div>
+          <div class="kpi-label">Pending</div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div id="instances" class="panel">
+          <h2>Instances</h2>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+        </div>
+        <div id="gates" class="panel">
+          <h2>Pending Gates</h2>
+        </div>
+      </div>
+      <div id="graph" class="panel" style="margin-top: 1rem;">
+        <h2>Graph</h2>
+        <div id="cytoscape-container" style="width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;"></div>
+        <div id="node-detail" style="display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
+          <h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3>
+          <div id="node-detail-content"></div>
+          <button id="node-detail-close" aria-label="Close node detail" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Run view -->
+    <!-- ============================================================ -->
+    <section id="view-run" class="view">
+      <div class="panel">
+        <h2>Run Template</h2>
+        <form id="run-form">
+          <div class="form-group">
+            <label for="run-template">Template</label>
+            <select id="run-template" name="template">
+              <option value="">-- Select a template --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="project_path">Project Path</label>
+            <input type="text" id="project_path" name="project_path" placeholder="/path/to/project">
+          </div>
+          <div class="form-group">
+            <label for="params">Parameters (JSON)</label>
+            <textarea id="params" name="params" rows="3" placeholder='{"key": "value"}'></textarea>
+          </div>
+          <div class="form-group">
+            <label for="runner">Runner</label>
+            <select id="runner" name="runner">
+              <option value="default">Default Runner</option>
+              <option value="local">Local</option>
+              <option value="remote">Remote</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Execution Mode</label>
+            <div class="radio-group">
+              <label><input type="radio" name="mode" value="async" checked> Async</label>
+              <label><input type="radio" name="mode" value="sync"> Sync</label>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" id="run-submit">Run Template</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- History view -->
+    <!-- ============================================================ -->
+    <section id="view-history" class="view">
+      <div class="panel">
+        <h2>Instance History</h2>
+        <div class="filter-bar">
+          <div class="form-group">
+            <label for="filter-template">Template</label>
+            <select id="filter-template">
+              <option value="">All Templates</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="filter-status">Status</label>
+            <select id="filter-status">
+              <option value="">All Statuses</option>
+              <option value="running">Running</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+        </div>
+        <table class="data-table" id="history-table">
+          <thead>
+            <tr>
+              <th aria-sort="none" data-sort="id">ID</th>
+              <th aria-sort="none" data-sort="template">Template</th>
+              <th aria-sort="none" data-sort="status">Status</th>
+              <th aria-sort="none" data-sort="runner">Runner</th>
+              <th aria-sort="none" data-sort="cost">Cost</th>
+              <th aria-sort="none" data-sort="created">Created</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="6" class="empty-msg">Loading...</td></tr>
+          </tbody>
+        </table>
+        <p class="empty-msg" id="history-empty" style="display:none;">No instances found.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Audit view -->
+    <!-- ============================================================ -->
+    <section id="view-audit" class="view">
+      <div class="panel">
+        <h2>Audit Timeline</h2>
+        <div id="timeline" class="timeline-list">
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+        </div>
+        <p class="empty-msg" id="audit-empty" style="display:none;">No audit entries found.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Cost view -->
+    <!-- ============================================================ -->
+    <section id="view-cost" class="view">
+      <div class="panel">
+        <h2>Cost Analysis</h2>
+        <div style="margin-bottom: 1rem;">
+          <button class="btn btn-secondary" id="toggle-cost-view" aria-label="Toggle between chart and table view">View as Table</button>
+        </div>
+        <div id="cost-chart-container" class="cost-chart-container">
+          <div id="cost-chart">
+            <!-- bar chart rendered here -->
+          </div>
+          <canvas id="cost-canvas" style="display:none; width:100%; height:300px;"></canvas>
+        </div>
+        <div id="cost-table-container" style="display:none;">
+          <table class="data-table" id="cost-table">
+            <thead>
+              <tr>
+                <th aria-sort="none">Instance</th>
+                <th aria-sort="none">Template</th>
+                <th aria-sort="none">Cost (USD)</th>
+                <th aria-sort="none">Tokens</th>
+              </tr>
+            </thead>
+            <tbody id="cost-table-body">
+              <tr><td colspan="4" class="empty-msg">No data</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Digest view -->
+    <!-- ============================================================ -->
+    <section id="view-digest" class="view">
+      <div id="digest-budget-alert" class="budget-alert" style="display:none;">
+        <svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.96L13.75 4a2 2 0 00-3.5 0L3.32 16.04A2 2 0 005.07 19z"/></svg>
+        <span class="budget-alert-text">Warning: over budget -- some instances exceed the red line threshold.</span>
+      </div>
+      <div class="panel">
+        <h2>Digest Summary</h2>
+        <div class="digest-summary" id="digest-cards">
+          <div class="digest-card">
+            <div class="digest-card-label">Total Cost</div>
+            <div class="digest-card-value" id="digest-total-cost">--</div>
+          </div>
+          <div class="digest-card">
+            <div class="digest-card-label">Total Instances</div>
+            <div class="digest-card-value" id="digest-total-instances">--</div>
+          </div>
+          <div class="digest-card">
+            <div class="digest-card-label">Total Tokens</div>
+            <div class="digest-card-value" id="digest-total-tokens">--</div>
+          </div>
+          <div class="digest-card">
+            <div class="digest-card-label">Over Budget Count</div>
+            <div class="digest-card-value" id="digest-over-budget">--</div>
+          </div>
+        </div>
+        <p class="empty-msg" id="digest-empty" style="display:none;">No digest data available.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Templates view -->
+    <!-- ============================================================ -->
+    <section id="view-templates" class="view">
+      <div class="panel">
+        <h2>Install Template</h2>
+        <form id="template-install-form">
+          <div class="form-group">
+            <label for="source">Source URL</label>
+            <input type="text" id="source" name="source" placeholder="https://example.com/templates/my-template.yaml">
+          </div>
+          <button type="submit" class="btn btn-primary" id="install-template-btn">Install Template</button>
+        </form>
+      </div>
+      <div class="panel">
+        <h2>Installed Templates</h2>
+        <div id="installed-templates-list">
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+        </div>
+        <p class="empty-msg" id="templates-empty" style="display:none;">No templates installed.</p>
+      </div>
+    </section>
+
+  </main>
 </div>
+
+<!-- Toast container -->
+<div id="toast-container" class="toast-container" aria-live="polite" role="status"></div>
 
 <script>
 (function () {
@@ -97,12 +481,56 @@
   // Red-highlight instances with cost_usd >= 5 (over-budget threshold)
   var OVER_BUDGET_THRESHOLD = 5;
 
-  var statusEl  = document.getElementById("status");
-  var instPanel = document.getElementById("instances");
-  var gatesPanel = document.getElementById("gates");
-  var graphPanel = document.getElementById("graph");
+  var statusEl = document.getElementById("status");
 
-  // --- Fetch helpers -----------------------------------------------------------
+  // =====================================================================
+  // Navigation — sidebar view switching
+  // =====================================================================
+
+  var navItems = document.querySelectorAll('.nav-item[data-view]');
+  var views = document.querySelectorAll('.view');
+
+  function showView(viewName) {
+    views.forEach(function (v) { v.classList.remove('active'); });
+    navItems.forEach(function (n) { n.classList.remove('active'); });
+    var target = document.getElementById('view-' + viewName);
+    if (target) target.classList.add('active');
+    var navBtn = document.querySelector('.nav-item[data-view="' + viewName + '"]');
+    if (navBtn) navBtn.classList.add('active');
+
+    // Load data for the view on first show
+    if (viewName === 'history') loadHistory();
+    if (viewName === 'audit') loadAudit();
+    if (viewName === 'cost') loadCost();
+    if (viewName === 'digest') loadDigest();
+    if (viewName === 'templates') loadTemplates();
+    if (viewName === 'run') loadRunTemplates();
+  }
+
+  navItems.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      showView(btn.getAttribute('data-view'));
+    });
+  });
+
+  // =====================================================================
+  // Toast notifications
+  // =====================================================================
+
+  function showToast(message, type) {
+    var container = document.getElementById('toast-container');
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + (type || 'info');
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(function () {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 4000);
+  }
+
+  // =====================================================================
+  // Fetch helpers
+  // =====================================================================
 
   function fetchJSON(url) {
     return fetch(url).then(function (res) {
@@ -112,13 +540,26 @@
   }
 
   function showError(msg) {
-    var div = document.createElement("div");
-    div.className = "error-msg";
-    div.textContent = msg;
-    statusEl.parentNode.insertBefore(div, statusEl.nextSibling);
+    showToast(msg, 'error');
   }
 
-  // --- Render: instances panel --------------------------------------------------
+  function escHtml(str) {
+    var d = document.createElement("span");
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function shortId(id) {
+    return (id && id.length > 8) ? id.slice(0, 8) + "..." : id;
+  }
+
+  // =====================================================================
+  // Dashboard — instances, gates, graph, stats, health
+  // =====================================================================
+
+  var instPanel = document.getElementById("instances");
+  var gatesPanel = document.getElementById("gates");
+  var graphPanel = document.getElementById("graph");
 
   function statusBadge(status) {
     var cls = "badge-default";
@@ -135,9 +576,7 @@
   }
 
   function renderInstances(instances) {
-    // Keep the h2
     var h2 = instPanel.querySelector("h2");
-
     if (!instances.length) {
       instPanel.innerHTML = "";
       instPanel.appendChild(h2);
@@ -147,41 +586,32 @@
       instPanel.appendChild(empty);
       return;
     }
-
     instPanel.innerHTML = "";
     instPanel.appendChild(h2);
-
     instances.forEach(function (inst) {
       var item = document.createElement("div");
       item.className = "instance-item";
-
       var title = document.createElement("div");
       title.className = "instance-title";
       title.textContent = inst.title || inst.id;
       item.appendChild(title);
-
       var meta = document.createElement("div");
       meta.className = "instance-meta";
       meta.appendChild(statusBadge(inst.status));
-
       var cost = document.createElement("span");
       var usd = inst.cost_usd || 0;
       cost.className = "cost" + (usd >= OVER_BUDGET_THRESHOLD ? " cost-over-budget" : "");
       cost.textContent = "$" + usd.toFixed(4);
       meta.appendChild(cost);
-
       item.appendChild(meta);
       instPanel.appendChild(item);
     });
   }
 
-  // --- Render: gates panel ------------------------------------------------------
-
   function renderGates(gates) {
     var h2 = gatesPanel.querySelector("h2");
     gatesPanel.innerHTML = "";
     gatesPanel.appendChild(h2);
-
     if (!gates.length) {
       var empty = document.createElement("div");
       empty.className = "empty-msg";
@@ -189,36 +619,31 @@
       gatesPanel.appendChild(empty);
       return;
     }
-
     gates.forEach(function (gate) {
       var item = document.createElement("div");
       item.className = "gate-item";
-
       var title = document.createElement("div");
       title.className = "gate-title";
       title.textContent = gate.title || gate.id;
       item.appendChild(title);
-
       var meta = document.createElement("div");
       meta.className = "gate-meta";
       meta.textContent = "Instance: " + (gate.instance_id || "?") + " | Kind: " + (gate.kind || "?");
       item.appendChild(meta);
-
       var actions = document.createElement("div");
       actions.className = "gate-actions";
-
       var approveBtn = document.createElement("button");
       approveBtn.className = "gate-btn gate-btn-approve";
       approveBtn.textContent = "Approve";
+      approveBtn.setAttribute("aria-label", "Approve gate " + (gate.id || ""));
       approveBtn.onclick = function () { approveGate(gate.id); };
       actions.appendChild(approveBtn);
-
       var rejectBtn = document.createElement("button");
       rejectBtn.className = "gate-btn gate-btn-reject";
       rejectBtn.textContent = "Reject";
+      rejectBtn.setAttribute("aria-label", "Reject gate " + (gate.id || ""));
       rejectBtn.onclick = function () { rejectGate(gate.id); };
       actions.appendChild(rejectBtn);
-
       item.appendChild(actions);
       gatesPanel.appendChild(item);
     });
@@ -232,6 +657,7 @@
     }).then(function (res) {
       if (res.ok) {
         statusEl.textContent = "Gate approved: " + nodeId;
+        showToast("Gate approved", "success");
         refreshData();
       } else {
         showError("Failed to approve gate");
@@ -241,7 +667,7 @@
 
   function rejectGate(nodeId) {
     var reason = prompt("Rejection reason:");
-    if (reason === null) return; // cancelled
+    if (reason === null) return;
     fetch("/api/gates/" + nodeId + "/reject", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -249,12 +675,44 @@
     }).then(function (res) {
       if (res.ok) {
         statusEl.textContent = "Gate rejected: " + nodeId;
+        showToast("Gate rejected", "success");
         refreshData();
       } else {
         showError("Failed to reject gate");
       }
     });
   }
+
+  // --- Dashboard stats + health ---
+
+  function loadDashboardStats() {
+    fetchJSON("/api/stats").then(function (stats) {
+      var byStatus = (stats.instances && stats.instances.by_status) || {};
+      function kpi(id, key) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = byStatus[key] || 0;
+      }
+      kpi("kpi-running", "running");
+      kpi("kpi-failed", "failed");
+      kpi("kpi-success", "succeeded");
+      // Treat waiting_gate as pending as well.
+      var pend = document.getElementById("kpi-pending");
+      if (pend) pend.textContent = (byStatus.pending || 0) + (byStatus.waiting_gate || 0);
+    }).catch(function () {
+      // Stats endpoint may not be available; ignore
+    });
+
+    fetchJSON("/api/health").then(function (health) {
+      // Update status bar with health info
+      if (health && health.status) {
+        statusEl.textContent = "System: " + health.status;
+      }
+    }).catch(function () {
+      // Health endpoint may not be available; ignore
+    });
+  }
+
+  // --- Refresh all dashboard data ---
 
   function refreshData() {
     return Promise.all([
@@ -268,6 +726,7 @@
       renderInstances(instances);
       renderGates(gates);
       renderGraph(graphData);
+      loadDashboardStats();
       statusEl.textContent = "Loaded " + instances.length + " instance" +
         (instances.length === 1 ? "" : "s") + ", " + gates.length + " pending gate" +
         (gates.length === 1 ? "" : "s");
@@ -278,7 +737,9 @@
     });
   }
 
-  // --- Render: graph panel ------------------------------------------------------
+  // =====================================================================
+  // Cytoscape DAG graph
+  // =====================================================================
 
   var cy = null;
 
@@ -353,7 +814,6 @@
     var detail = document.getElementById("node-detail");
     var content = document.getElementById("node-detail-content");
     if (!detail || !content || !nodeData) return;
-
     var html = "<table style='width:100%; border-collapse:collapse;'>";
     var fields = ["id", "name", "kind", "status", "tier", "gate", "spec", "budget_tokens"];
     fields.forEach(function (f) {
@@ -372,15 +832,11 @@
   function initCytoscape(graphData) {
     var container = document.getElementById("cytoscape-container");
     if (!container || typeof cytoscape === "undefined") return;
-
     var elements = buildCytoscapeElements(graphData);
-
     if (cy) { cy.destroy(); cy = null; }
-
     if (typeof cytoscapeDagre !== "undefined" && typeof cytoscape.use === "function") {
       cytoscape.use(cytoscapeDagre);
     }
-
     cy = cytoscape({
       container: container,
       elements: elements,
@@ -446,11 +902,9 @@
         padding: 30
       }
     });
-
     cy.on("tap", "node[^isInstance]", function (evt) {
       showNodeDetail(evt.target.data());
     });
-
     var closeBtn = document.getElementById("node-detail-close");
     if (closeBtn) {
       closeBtn.onclick = function () {
@@ -460,46 +914,396 @@
   }
 
   function renderGraph(graphData) {
-    var h2 = graphPanel.querySelector("h2");
-    graphPanel.innerHTML = "";
-    graphPanel.appendChild(h2);
-
-    var container = document.createElement("div");
-    container.id = "cytoscape-container";
+    var container = document.getElementById("cytoscape-container");
+    if (!container) return;
+    // Reset container
+    container.innerHTML = "";
     container.style.cssText = "width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;";
-    graphPanel.appendChild(container);
-
-    var detail = document.createElement("div");
-    detail.id = "node-detail";
-    detail.style.cssText = "display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;";
-    detail.innerHTML = '<h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3><div id="node-detail-content"></div>' +
-      '<button id="node-detail-close" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
-    graphPanel.appendChild(detail);
 
     var instances = graphData.instances || [];
     var nodes = graphData.nodes || [];
     if (!instances.length && !nodes.length) {
-      var empty = document.createElement("div");
-      empty.className = "empty-msg";
-      empty.textContent = "No graph data.";
-      graphPanel.appendChild(empty);
+      container.innerHTML = '<div class="empty-msg">No graph data available.</div>';
       return;
     }
-
     initCytoscape(graphData);
   }
 
-  function shortId(id) {
-    return (id && id.length > 8) ? id.slice(0, 8) + "…" : id;
+  // =====================================================================
+  // Run view — template selector + form submission
+  // =====================================================================
+
+  function loadRunTemplates() {
+    fetchJSON("/api/templates").then(function (templates) {
+      var sel = document.getElementById("run-template");
+      if (!sel) return;
+      sel.innerHTML = '<option value="">-- Select a template --</option>';
+      (templates || []).forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t.id || t.name;
+        opt.textContent = t.name || t.id;
+        sel.appendChild(opt);
+      });
+    }).catch(function () {});
   }
 
-  function escHtml(str) {
-    var d = document.createElement("span");
-    d.textContent = str;
-    return d.innerHTML;
+  var runForm = document.getElementById("run-form");
+  if (runForm) {
+    runForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var templateId = document.getElementById("run-template").value;
+      var projectPath = document.getElementById("project_path").value;
+      var paramsRaw = document.getElementById("params").value;
+      var runner = document.getElementById("runner").value;
+      var modeEl = document.querySelector('input[name="mode"]:checked');
+      var mode = modeEl ? modeEl.value : "async";
+
+      var params = {};
+      if (paramsRaw) {
+        try { params = JSON.parse(paramsRaw); } catch (e) { showToast("Invalid JSON parameters", "error"); return; }
+      }
+      params.project_path = projectPath;
+
+      var submitBtn = document.getElementById("run-submit");
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Running...";
+
+      fetch("/api/run", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({template: templateId, params: params, runner: runner, mode: mode})
+      }).then(function (res) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Run Template";
+        if (res.ok) {
+          return res.json().then(function (data) {
+            showToast("Run started: " + (data.id || templateId), "success");
+          });
+        } else {
+          showToast("Failed to start run", "error");
+        }
+      }).catch(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Run Template";
+        showToast("Network error", "error");
+      });
+    });
   }
 
-  // --- SSE live updates (P5-B) ------------------------------------------------
+  // =====================================================================
+  // History view — sortable table with filters
+  // =====================================================================
+
+  var historyData = [];
+  var historySortCol = "created";
+  var historySortDir = "desc";
+
+  function loadHistory() {
+    fetchJSON("/api/instances").then(function (instances) {
+      historyData = instances || [];
+      // Populate template filter
+      var tplFilter = document.getElementById("filter-template");
+      var templates = {};
+      historyData.forEach(function (inst) {
+        var t = inst.template || inst.title || "unknown";
+        templates[t] = true;
+      });
+      tplFilter.innerHTML = '<option value="">All Templates</option>';
+      Object.keys(templates).sort().forEach(function (t) {
+        var opt = document.createElement("option");
+        opt.value = t; opt.textContent = t;
+        tplFilter.appendChild(opt);
+      });
+      renderHistory();
+    }).catch(function () {
+      document.getElementById("history-empty").style.display = "";
+    });
+  }
+
+  function renderHistory() {
+    var tplFilter = document.getElementById("filter-template").value;
+    var statusFilter = document.getElementById("filter-status").value;
+    var filtered = historyData.filter(function (inst) {
+      if (tplFilter && (inst.template || inst.title) !== tplFilter) return false;
+      if (statusFilter && (inst.status || "").toLowerCase() !== statusFilter) return false;
+      return true;
+    });
+
+    // Sort
+    filtered.sort(function (a, b) {
+      var va = a[historySortCol] || "";
+      var vb = b[historySortCol] || "";
+      if (typeof va === "number" && typeof vb === "number") {
+        return historySortDir === "asc" ? va - vb : vb - va;
+      }
+      va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
+      if (va < vb) return historySortDir === "asc" ? -1 : 1;
+      if (va > vb) return historySortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    // Update aria-sort on headers
+    var ths = document.querySelectorAll("#history-table th[data-sort]");
+    ths.forEach(function (th) {
+      if (th.getAttribute("data-sort") === historySortCol) {
+        th.setAttribute("aria-sort", historySortDir === "asc" ? "ascending" : "descending");
+      } else {
+        th.setAttribute("aria-sort", "none");
+      }
+    });
+
+    var tbody = document.getElementById("history-body");
+    var emptyEl = document.getElementById("history-empty");
+    if (!filtered.length) {
+      tbody.innerHTML = "";
+      emptyEl.style.display = "";
+      return;
+    }
+    emptyEl.style.display = "none";
+    tbody.innerHTML = "";
+    filtered.forEach(function (inst) {
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + escHtml(shortId(inst.id)) + "</td>" +
+        "<td>" + escHtml(inst.template || inst.title || "--") + "</td>" +
+        "<td>" + escHtml(inst.status || "--") + "</td>" +
+        "<td>" + escHtml(inst.runner || "--") + "</td>" +
+        "<td class='cost" + ((inst.cost_usd || 0) >= OVER_BUDGET_THRESHOLD ? " cost-over-budget" : "") + "'>$" + (inst.cost_usd || 0).toFixed(4) + "</td>" +
+        "<td>" + escHtml(inst.created_at || inst.created || "--") + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Sortable header click
+  document.querySelectorAll("#history-table th[data-sort]").forEach(function (th) {
+    th.addEventListener("click", function () {
+      var col = th.getAttribute("data-sort");
+      if (historySortCol === col) {
+        historySortDir = historySortDir === "asc" ? "desc" : "asc";
+      } else {
+        historySortCol = col;
+        historySortDir = "asc";
+      }
+      renderHistory();
+    });
+  });
+
+  // Filter change
+  var filterTpl = document.getElementById("filter-template");
+  var filterStatus = document.getElementById("filter-status");
+  if (filterTpl) filterTpl.addEventListener("change", renderHistory);
+  if (filterStatus) filterStatus.addEventListener("change", renderHistory);
+
+  // =====================================================================
+  // Audit view — timeline
+  // =====================================================================
+
+  function loadAudit() {
+    var timelineEl = document.getElementById("timeline");
+    var emptyEl = document.getElementById("audit-empty");
+    fetchJSON("/api/audit").then(function (entries) {
+      if (!entries || !entries.length) {
+        timelineEl.innerHTML = "";
+        emptyEl.style.display = "";
+        return;
+      }
+      emptyEl.style.display = "none";
+      timelineEl.innerHTML = "";
+      entries.forEach(function (entry) {
+        var div = document.createElement("div");
+        div.className = "timeline-entry";
+        var text;
+        if (entry.type === "gate") {
+          var verdict = entry.approved ? "Approved" : (entry.approved === false ? "Rejected" : "Pending");
+          text = entry.node_id
+            ? "Gate " + verdict + " · node " + entry.node_id
+            : "Gate " + verdict;
+          if (entry.instance_id) text += " · instance " + entry.instance_id;
+          if (entry.actor) text += " · by " + entry.actor;
+          if (entry.reason) text += " (" + entry.reason + ")";
+        } else {
+          text = (entry.entity_kind || "entity") + " " + (entry.entity_id || "") + ": " +
+            (entry.from || "?") + " → " + (entry.to || "?");
+          if (entry.instance_id) text += " · instance " + entry.instance_id;
+        }
+        div.innerHTML =
+          '<div class="timeline-time">' + escHtml(entry.timestamp || entry.time || "") + '</div>' +
+          '<div class="timeline-text">' + escHtml(text || "") + '</div>';
+        timelineEl.appendChild(div);
+      });
+    }).catch(function () {
+      timelineEl.innerHTML = "";
+      emptyEl.style.display = "";
+    });
+  }
+
+  // =====================================================================
+  // Cost view — bar chart + table toggle
+  // =====================================================================
+
+  var costViewMode = "chart"; // "chart" or "table"
+
+  function loadCost() {
+    fetchJSON("/api/cost").then(function (data) {
+      var items = data.by_instance || [];
+      renderCostChart(items);
+      renderCostTable(items);
+    }).catch(function () {});
+  }
+
+  function renderCostChart(items) {
+    var chartEl = document.getElementById("cost-chart");
+    if (!items || !items.length) {
+      chartEl.innerHTML = '<p class="empty-msg">No data</p>';
+      return;
+    }
+    var maxCost = 0;
+    items.forEach(function (it) { if ((it.cost || it.cost_usd || 0) > maxCost) maxCost = it.cost || it.cost_usd; });
+    if (maxCost === 0) maxCost = 1;
+    chartEl.innerHTML = "";
+    items.forEach(function (it) {
+      var costVal = it.cost || it.cost_usd || 0;
+      var pct = (costVal / maxCost) * 100;
+      var isOver = costVal >= OVER_BUDGET_THRESHOLD;
+      var row = document.createElement("div");
+      row.className = "cost-bar-row";
+      row.innerHTML =
+        '<div class="cost-bar-label">' + escHtml(it.name || it.template_id || it.id || "--") + '</div>' +
+        '<div class="cost-bar-track"><div class="cost-bar-fill' + (isOver ? " over-budget" : "") + '" style="width:' + pct + '%;"></div></div>' +
+        '<div class="cost-bar-value">$' + costVal.toFixed(4) + '</div>';
+      chartEl.appendChild(row);
+    });
+  }
+
+  function renderCostTable(items) {
+    var tbody = document.getElementById("cost-table-body");
+    if (!items || !items.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-msg">No data</td></tr>';
+      return;
+    }
+    tbody.innerHTML = "";
+    items.forEach(function (it) {
+      var tr = document.createElement("tr");
+      var costVal = it.cost || it.cost_usd || 0;
+      tr.innerHTML =
+        "<td>" + escHtml(it.name || it.id || "--") + "</td>" +
+        "<td>" + escHtml(it.template_id || "--") + "</td>" +
+        "<td class='cost" + (costVal >= OVER_BUDGET_THRESHOLD ? " cost-over-budget" : "") + "'>$" + costVal.toFixed(4) + "</td>" +
+        "<td>" + (it.cost_tokens || it.tokens || "--") + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  var toggleBtn = document.getElementById("toggle-cost-view");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", function () {
+      var chartContainer = document.getElementById("cost-chart-container");
+      var tableContainer = document.getElementById("cost-table-container");
+      if (costViewMode === "chart") {
+        chartContainer.style.display = "none";
+        tableContainer.style.display = "";
+        toggleBtn.textContent = "View as Chart";
+        costViewMode = "table";
+      } else {
+        chartContainer.style.display = "";
+        tableContainer.style.display = "none";
+        toggleBtn.textContent = "View as Table";
+        costViewMode = "chart";
+      }
+    });
+  }
+
+  // =====================================================================
+  // Digest view — summary + budget alerts
+  // =====================================================================
+
+  function loadDigest() {
+    fetchJSON("/api/digest").then(function (digest) {
+      var totalCost = digest.total_cost_usd || digest.total_cost || 0;
+      var totalInstances = digest.total_instances || 0;
+      var totalTokens = digest.total_tokens || 0;
+      var overBudget = (digest.over_budget && digest.over_budget.length) ? digest.over_budget.length : 0;
+
+      document.getElementById("digest-total-cost").textContent = "$" + totalCost.toFixed(4);
+      document.getElementById("digest-total-instances").textContent = totalInstances;
+      document.getElementById("digest-total-tokens").textContent = totalTokens;
+      document.getElementById("digest-over-budget").textContent = overBudget;
+
+      // Show budget alert if over budget
+      var alertEl = document.getElementById("digest-budget-alert");
+      if (overBudget > 0 || totalCost > OVER_BUDGET_THRESHOLD) {
+        alertEl.style.display = "";
+      } else {
+        alertEl.style.display = "none";
+      }
+
+      document.getElementById("digest-empty").style.display = "none";
+    }).catch(function () {
+      document.getElementById("digest-empty").style.display = "";
+    });
+  }
+
+  // =====================================================================
+  // Templates view — install + list
+  // =====================================================================
+
+  function loadTemplates() {
+    fetchJSON("/api/templates").then(function (templates) {
+      var list = document.getElementById("installed-templates-list");
+      var emptyEl = document.getElementById("templates-empty");
+      if (!templates || !templates.length) {
+        list.innerHTML = "";
+        emptyEl.style.display = "";
+        return;
+      }
+      emptyEl.style.display = "none";
+      list.innerHTML = "";
+      templates.forEach(function (t) {
+        var card = document.createElement("div");
+        card.className = "template-card";
+        card.innerHTML =
+          '<div class="template-card-name">' + escHtml(t.name || t.id) + '</div>' +
+          '<div class="template-card-desc">' + escHtml(t.description || t.desc || "") + '</div>';
+        list.appendChild(card);
+      });
+    }).catch(function () {
+      document.getElementById("templates-empty").style.display = "";
+    });
+  }
+
+  var installForm = document.getElementById("template-install-form");
+  if (installForm) {
+    installForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var source = document.getElementById("source").value;
+      if (!source) { showToast("Please enter a source URL", "error"); return; }
+      var btn = document.getElementById("install-template-btn");
+      btn.disabled = true;
+      btn.textContent = "Installing...";
+      fetch("/api/templates/install", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({source: source})
+      }).then(function (res) {
+        btn.disabled = false;
+        btn.textContent = "Install Template";
+        if (res.ok) {
+          showToast("Template installed successfully", "success");
+          loadTemplates();
+        } else {
+          showToast("Failed to install template", "error");
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = "Install Template";
+        showToast("Network error", "error");
+      });
+    });
+  }
+
+  // =====================================================================
+  // SSE live updates
+  // =====================================================================
 
   var _sseTimer = null;
   function scheduleRefresh() {
@@ -521,7 +1325,9 @@
     };
   }
 
-  // --- Init ---------------------------------------------------------------------
+  // =====================================================================
+  // Init
+  // =====================================================================
 
   refreshData();
   connectSSE();
