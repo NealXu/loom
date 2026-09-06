@@ -552,6 +552,27 @@ def status(instance_id: str, db: str) -> None:
 
 
 @main.command()
+@click.argument("source")
+@click.option("--out", "out_dir", default="loom/templates/discovered",
+              help="Output directory for installed templates.")
+@click.option("--force", is_flag=True, help="Overwrite existing template.")
+def install(source: str, out_dir: str, force: bool) -> None:
+    """Install a template from a URL or local path.
+
+    SOURCE is either a URL (http:// / https://) or a local file path.
+    The template is validated before being saved to the output directory.
+    """
+    from loom.core.installer import install_template
+
+    try:
+        path = install_template(source, out_dir, force=force)
+        click.echo(f"Installed: {path}")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@main.command()
 @click.option("--db", default="loom.db", help="Path to the SQLite store.")
 @click.option("--config", "config_path", default="loom.toml", help="Read [budget] red_line_usd.")
 @click.option("--since", default=None, help="ISO datetime; only instances created after it.")
