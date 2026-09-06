@@ -1,4 +1,8 @@
-"""P4-A: codex/pi cost adaptation — command shapes + JSONL extraction."""
+"""P4-A: codex/pi cost adaptation — command shapes + JSONL extraction.
+
+Tests include both synthetic schemas (original P4-A scope) and REAL schemas
+captured live from codex-cli v0.153.2 and pi v0.84.4 on 2026-09-06.
+"""
 import asyncio
 import json
 import sys
@@ -58,3 +62,91 @@ def test_pi_command_shape():
     cmd = adapter.build_command("spec text")
     assert cmd == ["pi", "--mode", "json", "-p", "spec text"]
     assert adapter.parse_cost is True
+
+
+# ---------------------------------------------------------------------------
+# Real-schema validation (captured 2026-09-06 from codex-cli v0.153.2 / pi v0.84.4)
+# ---------------------------------------------------------------------------
+
+# Real codex `exec --json` output for spec "reply with the single word 'hello'"
+_REAL_CODEX_STDOUT = "\n".join([
+    '{"type":"thread.started","thread_id":"01a075c8-7b06-75f0-9cca-02028ef8ad52"}',
+    '{"type":"turn.started"}',
+    '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"hello"}}',
+    '{"type":"turn.completed","usage":{"input_tokens":7174,"cached_input_tokens":0,'
+    '"cache_write_input_tokens":0,"output_tokens":2,"reasoning_output_tokens":0}}',
+])
+
+# Real pi `--mode json` output (abridged: session + message_end with final usage)
+_REAL_PI_STDOUT = "\n".join([
+    json.dumps({"type": "session", "version": 3,
+                "id": "01a075c8-bbd6-7f8d-8334-87ca809c620d"}),
+    json.dumps({"type": "agent_start"}),
+    json.dumps({"type": "turn_start"}),
+    json.dumps({"type": "message_start", "message": {"role": "user",
+                "content": [{"type": "text", "text": "reply hello"}]}}),
+    json.dumps({"type": "message_end", "message": {
+        "role": "assistant",
+        "content": [{"type": "text", "text": "hello"}],
+        "api": "anthropic-messages", "provider": "dashscope",
+        "model": "qwen3.7-plus",
+        "usage": {
+            "input": 6, "output": 18,
+            "cacheRead": 0, "cacheWrite": 25816,
+            "totalTokens": 25840,
+            "cost": {"input": 0.001, "output": 0.002,
+                     "cacheRead": 0, "cacheWrite": 0, "total": 0.003},
+        },
+        "stopReason": "stop",
+    }}),
+    json.dumps({"type": "turn_end"}),
+    json.dumps({"type": "agent_end", "messages": [], "willRetry": False}),
+    json.dumps({"type": "agent_settled"}),
+])
+
+
+def test_real_codex_extracts_tokens_no_cost():
+    """Real codex output reports input_tokens/output_tokens, no cost field."""
+    tokens, usd = extract_cost(_REAL_CODEX_STDOUT)
+    assert tokens == 7174 + 2  # input + output from turn.completed
+    assert usd == 0.0          # codex CLI does not emit cost
+
+
+def test_real_pi_extracts_tokens_and_cost():
+    """Real pi output uses camelCase totalTokens and nested cost.total."""
+    tokens, usd = extract_cost(_REAL_PI_STDOUT)
+    assert tokens == 25840   # totalTokens (camelCase) from message.usage
+    assert usd == 0.003      # cost.total (nested dict)
+
+
+def test_real_pi_agent_end_also_extracts():
+    """pi agent_end carries the same usage block; should also parse."""
+    agent_end = json.dumps({
+        "type": "agent_end",
+        "messages": [{
+            "role": "assistant",
+            "usage": {
+                "input": 6, "output": 18,
+                "totalTokens": 25840,
+                "cost": {"input": 0.001, "output": 0.002,
+                         "cacheRead": 0, "cacheWrite": 0, "total": 0.003},
+            },
+        }],
+    })
+    tokens, usd = extract_cost(agent_end)
+    assert tokens == 25840
+    assert usd == 0.003
+
+
+def test_real_pi_cost_dict_sum_fallback():
+    """When cost dict has no 'total' key, fall back to input+output sum."""
+    out = json.dumps({
+        "type": "message_end",
+        "message": {"role": "assistant", "usage": {
+            "input": 10, "output": 5, "totalTokens": 15,
+            "cost": {"input": 0.01, "output": 0.02},  # no 'total'
+        }},
+    })
+    tokens, usd = extract_cost(out)
+    assert tokens == 15
+    assert usd == 0.03  # 0.01 + 0.02

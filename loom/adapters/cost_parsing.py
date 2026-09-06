@@ -19,16 +19,24 @@ def _first(d: dict, *keys, default=0):
 
 
 def _record_tokens(obj: dict) -> int:
-    """Best token total in one JSON record: any nested usage-style dict."""
+    """Best token total in one JSON record: any nested usage-style dict.
+
+    Handles real-world CLI schemas:
+    - ``total_tokens`` (claude-style)
+    - ``totalTokens`` (pi camelCase)
+    - ``input_tokens`` + ``output_tokens`` (codex)
+    - ``input`` + ``output`` (pi short-form)
+    """
     best = 0
 
     def walk(node):
         nonlocal best
         if isinstance(node, dict):
-            t = node.get("total_tokens")
+            # Try total-style keys first (snake_case, then camelCase)
+            t = node.get("total_tokens") or node.get("totalTokens")
             if t is None:
-                t = (_first(node, "input_tokens", "prompt_tokens", default=0)
-                     + _first(node, "output_tokens", "completion_tokens", default=0))
+                t = (_first(node, "input_tokens", "prompt_tokens", "input", default=0)
+                     + _first(node, "output_tokens", "completion_tokens", "output", default=0))
             try:
                 best = max(best, int(t or 0))
             except (TypeError, ValueError):
@@ -44,15 +52,39 @@ def _record_tokens(obj: dict) -> int:
 
 
 def _record_cost(obj: dict) -> float:
-    """Max cost float found anywhere in one JSON record."""
+    """Max cost float found anywhere in one JSON record.
+
+    Handles real-world CLI schemas:
+    - Flat: ``total_cost_usd``, ``cost_usd`` (float at any depth)
+    - Nested: ``cost.total``, ``cost.total_cost_usd`` (pi-style dict)
+    - Nested sum: ``cost.input + cost.output`` when no total key present
+    """
     best = 0.0
 
     def walk(node):
         nonlocal best
         if isinstance(node, dict):
-            for k in ("total_cost_usd", "cost_usd", "cost"):
+            # Direct float cost keys (claude-style)
+            for k in ("total_cost_usd", "cost_usd"):
                 if k in node and isinstance(node[k], (int, float)):
                     best = max(best, float(node[k]))
+            # Nested cost dict (pi-style)
+            cost_dict = node.get("cost")
+            if isinstance(cost_dict, dict):
+                # Try known total keys inside the cost dict
+                for tk in ("total", "total_cost_usd", "cost_usd"):
+                    if tk in cost_dict and isinstance(cost_dict[tk], (int, float)):
+                        best = max(best, float(cost_dict[tk]))
+                        break
+                else:
+                    # Fall back to summing input + output inside the cost dict
+                    s = sum(v for v in (cost_dict.get("input"), cost_dict.get("output"))
+                            if isinstance(v, (int, float)))
+                    if s > 0:
+                        best = max(best, float(s))
+            elif isinstance(cost_dict, (int, float)):
+                # legacy: cost key is a plain number
+                best = max(best, float(cost_dict))
             for v in node.values():
                 walk(v)
         elif isinstance(node, list):
