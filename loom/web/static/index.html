@@ -255,14 +255,24 @@
   }
 
   function refreshData() {
-    Promise.all([
+    return Promise.all([
       fetchJSON("/api/instances"),
       fetchJSON("/api/gates"),
       fetchJSON("/api/graph")
     ]).then(function (results) {
-      renderInstances(results[0]);
-      renderGates(results[1]);
-      renderGraph(results[2]);
+      var instances = results[0];
+      var gates = results[1];
+      var graphData = results[2];
+      renderInstances(instances);
+      renderGates(gates);
+      renderGraph(graphData);
+      statusEl.textContent = "Loaded " + instances.length + " instance" +
+        (instances.length === 1 ? "" : "s") + ", " + gates.length + " pending gate" +
+        (gates.length === 1 ? "" : "s");
+      return results;
+    }).catch(function (err) {
+      statusEl.textContent = "Error loading data";
+      showError("Failed to load data: " + err.message);
     });
   }
 
@@ -484,26 +494,32 @@
     return d.innerHTML;
   }
 
+  // --- SSE live updates (P5-B) ------------------------------------------------
+
+  var _sseTimer = null;
+  function scheduleRefresh() {
+    // debounce: coalesce bursts of events into one refresh at most every 2s
+    if (_sseTimer) return;
+    _sseTimer = setTimeout(function () {
+      _sseTimer = null;
+      refreshData();
+    }, 2000);
+  }
+
+  function connectSSE() {
+    if (typeof EventSource === "undefined") return;
+    var es = new EventSource("/api/events/stream");
+    es.onmessage = function () { scheduleRefresh(); };
+    es.onerror = function () {
+      // EventSource auto-reconnects; just surface status
+      statusEl.textContent = "Live updates reconnecting...";
+    };
+  }
+
   // --- Init ---------------------------------------------------------------------
 
-  Promise.all([
-    fetchJSON("/api/instances"),
-    fetchJSON("/api/gates"),
-    fetchJSON("/api/graph")
-  ]).then(function (results) {
-    var instances = results[0];
-    var gates = results[1];
-    var graphData = results[2];
-    renderInstances(instances);
-    renderGates(gates);
-    renderGraph(graphData);
-    statusEl.textContent = "Loaded " + instances.length + " instance" +
-      (instances.length === 1 ? "" : "s") + ", " + gates.length + " pending gate" +
-      (gates.length === 1 ? "" : "s");
-  }).catch(function (err) {
-    statusEl.textContent = "Error loading data";
-    showError("Failed to load data: " + err.message);
-  });
+  refreshData();
+  connectSSE();
 })();
 </script>
 </body>
