@@ -58,7 +58,11 @@
   .gate-btn-approve:hover { background: #047857; }
   .gate-btn-reject { background: #7f1d1d; color: #fca5a5; }
   .gate-btn-reject:hover { background: #991b1b; }
+
+  /* Cytoscape DAG */
+  #cytoscape-container canvas { outline: none; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.3/dist/cytoscape.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -75,6 +79,12 @@
   </div>
   <div id="graph" class="panel" style="margin-top: 1rem;">
     <h2>Graph</h2>
+    <div id="cytoscape-container" style="width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;"></div>
+    <div id="node-detail" style="display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
+      <h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3>
+      <div id="node-detail-content"></div>
+      <button id="node-detail-close" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+    </div>
   </div>
 </div>
 
@@ -258,15 +268,201 @@
 
   // --- Render: graph panel ------------------------------------------------------
 
+  var cy = null;
+
+  function statusToColor(status) {
+    var map = {
+      "pending": "#94a3b8",
+      "running": "#3b82f6",
+      "succeeded": "#22c55e",
+      "failed": "#ef4444",
+      "waiting_gate": "#eab308",
+      "blocked": "#f97316",
+      "cancelled": "#6b7280"
+    };
+    return map[status] || "#94a3b8";
+  }
+
+  function tierToBorder(tier) {
+    var map = {
+      "critical": "3px solid #ef4444",
+      "heavy": "3px solid #f97316",
+      "tooling": "2px solid #64748b",
+      "bulk": "2px solid #3b82f6"
+    };
+    return map[tier] || "2px solid #64748b";
+  }
+
+  function buildCytoscapeElements(graphData) {
+    var elements = [];
+    var instances = graphData.instances || [];
+    var nodes = graphData.nodes || [];
+    var edges = graphData.edges || [];
+
+    instances.forEach(function (inst) {
+      elements.push({
+        data: { id: inst.id, name: inst.title || inst.id, isInstance: true },
+        classes: "instance-group"
+      });
+    });
+
+    nodes.forEach(function (n) {
+      elements.push({
+        data: {
+          id: n.id,
+          parent: n.instance_id,
+          name: n.title || n.id,
+          kind: n.kind || "?",
+          status: n.status || "pending",
+          tier: n.tier || "tooling",
+          gate: n.gate || "none",
+          spec: n.spec || "",
+          budget_tokens: n.budget_tokens || 0,
+          bgColor: statusToColor(n.status)
+        }
+      });
+    });
+
+    edges.forEach(function (e) {
+      elements.push({
+        data: {
+          id: e.from_node + "->" + e.to_node,
+          source: e.from_node,
+          target: e.to_node,
+          type: e.type || "depends"
+        }
+      });
+    });
+
+    return elements;
+  }
+
+  function showNodeDetail(nodeData) {
+    var detail = document.getElementById("node-detail");
+    var content = document.getElementById("node-detail-content");
+    if (!detail || !content || !nodeData) return;
+
+    var html = "<table style='width:100%; border-collapse:collapse;'>";
+    var fields = ["id", "name", "kind", "status", "tier", "gate", "spec", "budget_tokens"];
+    fields.forEach(function (f) {
+      var val = nodeData[f];
+      if (val !== undefined && val !== null && val !== "") {
+        html += "<tr><td style='padding:4px 8px; color:#94a3b8; white-space:nowrap;'>" +
+          escHtml(f) + "</td><td style='padding:4px 8px; color:#e2e8f0;'>" +
+          escHtml(String(val)) + "</td></tr>";
+      }
+    });
+    html += "</table>";
+    content.innerHTML = html;
+    detail.style.display = "block";
+  }
+
+  function initCytoscape(graphData) {
+    var container = document.getElementById("cytoscape-container");
+    if (!container || typeof cytoscape === "undefined") return;
+
+    var elements = buildCytoscapeElements(graphData);
+
+    if (cy) { cy.destroy(); cy = null; }
+
+    cy = cytoscape({
+      container: container,
+      elements: elements,
+      style: [
+        {
+          selector: "node.instance-group",
+          style: {
+            "label": "data(name)",
+            "background-color": "#1e293b",
+            "border-color": "#475569",
+            "border-width": 2,
+            "text-valign": "top",
+            "font-size": 14,
+            "color": "#e2e8f0",
+            "padding": 20
+          }
+        },
+        {
+          selector: "node[?isInstance]",
+          style: {
+            "label": "data(name)",
+            "background-color": "#1e293b",
+            "border-color": "#475569",
+            "border-width": 2,
+            "text-valign": "top",
+            "font-size": 14,
+            "color": "#e2e8f0",
+            "padding": 20
+          }
+        },
+        {
+          selector: "node[^isInstance]",
+          style: {
+            "label": "data(name)",
+            "background-color": "data(bgColor)",
+            "color": "#fff",
+            "text-valign": "center",
+            "text-halign": "center",
+            "font-size": 11,
+            "width": 60,
+            "height": 30,
+            "shape": "roundrectangle",
+            "border-width": 2,
+            "border-color": "#475569"
+          }
+        },
+        {
+          selector: "edge",
+          style: {
+            "width": 2,
+            "line-color": "#64748b",
+            "target-arrow-color": "#64748b",
+            "target-arrow-shape": "triangle",
+            "curve-style": "bezier"
+          }
+        }
+      ],
+      layout: {
+        name: "cose",
+        animate: false,
+        padding: 30,
+        nodeRepulsion: 400000,
+        idealEdgeLength: 100,
+        edgeElasticity: 100
+      }
+    });
+
+    cy.on("tap", "node[^isInstance]", function (evt) {
+      showNodeDetail(evt.target.data());
+    });
+
+    var closeBtn = document.getElementById("node-detail-close");
+    if (closeBtn) {
+      closeBtn.onclick = function () {
+        document.getElementById("node-detail").style.display = "none";
+      };
+    }
+  }
+
   function renderGraph(graphData) {
     var h2 = graphPanel.querySelector("h2");
     graphPanel.innerHTML = "";
     graphPanel.appendChild(h2);
 
-    var instances = graphData.instances || [];
-    var nodes     = graphData.nodes     || [];
-    var edges     = graphData.edges     || [];
+    var container = document.createElement("div");
+    container.id = "cytoscape-container";
+    container.style.cssText = "width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;";
+    graphPanel.appendChild(container);
 
+    var detail = document.createElement("div");
+    detail.id = "node-detail";
+    detail.style.cssText = "display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;";
+    detail.innerHTML = '<h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3><div id="node-detail-content"></div>' +
+      '<button id="node-detail-close" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>';
+    graphPanel.appendChild(detail);
+
+    var instances = graphData.instances || [];
+    var nodes = graphData.nodes || [];
     if (!instances.length && !nodes.length) {
       var empty = document.createElement("div");
       empty.className = "empty-msg";
@@ -275,72 +471,7 @@
       return;
     }
 
-    // Group nodes by instance_id
-    var byInstance = {};
-    nodes.forEach(function (n) {
-      var iid = n.instance_id;
-      if (!byInstance[iid]) byInstance[iid] = [];
-      byInstance[iid].push(n);
-    });
-
-    // Build edge lookup: from_node -> [to_node]
-    var edgeMap = {};
-    edges.forEach(function (e) {
-      if (!edgeMap[e.from_node]) edgeMap[e.from_node] = [];
-      edgeMap[e.from_node].push(e.to_node);
-    });
-
-    // Render each instance group
-    instances.forEach(function (inst) {
-      var group = document.createElement("div");
-      group.className = "instance-group";
-
-      var heading = document.createElement("h3");
-      var costStr = "";
-      if (inst.cost_usd != null) {
-        var usd = inst.cost_usd;
-        costStr = (usd >= OVER_BUDGET_THRESHOLD)
-          ? " ⚠ $" + usd.toFixed(4)   // warning sign for over-budget
-          : " $" + usd.toFixed(4);
-      }
-      heading.textContent = (inst.title || inst.id) + costStr;
-      if (inst.cost_usd >= OVER_BUDGET_THRESHOLD) heading.style.color = "#f87171";
-      group.appendChild(heading);
-
-      var instNodes = byInstance[inst.id] || [];
-      var nodeIdSet = {};
-      instNodes.forEach(function (n) { nodeIdSet[n.id] = true; });
-
-      instNodes.forEach(function (n) {
-        var nodeEl = document.createElement("span");
-        nodeEl.className = "node";
-        var kindSpan = document.createElement("span");
-        kindSpan.className = "node-kind";
-        kindSpan.textContent = n.kind || "?";
-        nodeEl.appendChild(kindSpan);
-        nodeEl.appendChild(document.createTextNode(n.title || n.id));
-        group.appendChild(nodeEl);
-      });
-
-      // Edges within this instance
-      var instEdges = edges.filter(function (e) {
-        return nodeIdSet[e.from_node] || nodeIdSet[e.to_node];
-      });
-      if (instEdges.length) {
-        var edgeDiv = document.createElement("div");
-        edgeDiv.className = "edge-list";
-        instEdges.forEach(function (e) {
-          var s = document.createElement("span");
-          s.innerHTML = escHtml(shortId(e.from_node)) +
-            " <span class='arrow'>&rarr;</span> " +
-            escHtml(shortId(e.to_node));
-          edgeDiv.appendChild(s);
-        });
-        group.appendChild(edgeDiv);
-      }
-
-      graphPanel.appendChild(group);
-    });
+    initCytoscape(graphData);
   }
 
   function shortId(id) {

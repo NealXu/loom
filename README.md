@@ -191,7 +191,7 @@ The Web UI provides:
 - Instance list with cost breakdown
 - Pending gates panel with approve/reject buttons
 - Real-time event stream (SSE)
-- Graph visualization (instances, nodes, edges)
+- **Interactive DAG visualization** (Cytoscape.js): nodes grouped by instance, status-colored, directed edges, click for detail
 
 ## Templates
 

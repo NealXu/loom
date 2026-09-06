@@ -185,6 +185,39 @@ class Store:
             for r in rows
         ]
 
+    def get_graph(self) -> dict:
+        """Return full graph data: all instances, nodes, and edges."""
+        inst_rows = self.conn.execute(
+            "SELECT id, title, status, cost_usd, template_id FROM instances"
+        ).fetchall()
+        instances = [
+            {"id": r["id"], "title": r["title"], "status": r["status"],
+             "cost_usd": r["cost_usd"], "template_id": r["template_id"]}
+            for r in inst_rows
+        ]
+
+        node_rows = self.conn.execute(
+            "SELECT id, instance_id, title, kind, status, tier, gate, spec, budget_tokens FROM nodes"
+        ).fetchall()
+        nodes = [
+            {"id": r["id"], "instance_id": r["instance_id"], "title": r["title"],
+             "kind": r["kind"], "status": r["status"], "tier": r["tier"],
+             "gate": r["gate"], "spec": r["spec"] or "",
+             "budget_tokens": r["budget_tokens"]}
+            for r in node_rows
+        ]
+
+        edge_rows = self.conn.execute(
+            "SELECT from_node, to_node, type, instance_id FROM edges"
+        ).fetchall()
+        edges = [
+            {"from_node": r["from_node"], "to_node": r["to_node"],
+             "type": r["type"], "instance_id": r["instance_id"]}
+            for r in edge_rows
+        ]
+
+        return {"instances": instances, "nodes": nodes, "edges": edges}
+
     def update_node_status(self, node_id: str, status: str, **fields) -> None:
         """Update node status and optional fields (started_at, finished_at, etc.)."""
         set_clauses = ["status = ?"]

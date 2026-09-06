@@ -1,8 +1,11 @@
 """FastAPI web backend for Loom — read-only REST API over the graph store."""
 
 import json
+import os
+from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 
@@ -36,6 +39,12 @@ class RunRequestBody(BaseModel):
 def create_app(store) -> FastAPI:
     """Pure app factory. No uvicorn.run."""
     app = FastAPI(title="Loom", version="0.1.0")
+
+    _INDEX_HTML = Path(__file__).resolve().parent / "static" / "index.html"
+
+    @app.get("/")
+    def index():
+        return FileResponse(str(_INDEX_HTML), media_type="text/html")
 
     @app.get("/api/instances")
     def list_instances(limit: Optional[int] = None, offset: int = 0):
@@ -84,33 +93,7 @@ def create_app(store) -> FastAPI:
 
     @app.get("/api/graph")
     def get_graph():
-        inst_rows = store.conn.execute(
-            "SELECT id, title, status, cost_usd FROM instances"
-        ).fetchall()
-        instances = [
-            {"id": r["id"], "title": r["title"], "status": r["status"],
-             "cost_usd": r["cost_usd"]}
-            for r in inst_rows
-        ]
-
-        node_rows = store.conn.execute(
-            "SELECT id, instance_id, title, kind, status FROM nodes"
-        ).fetchall()
-        nodes = [
-            {"id": r["id"], "instance_id": r["instance_id"], "title": r["title"],
-             "kind": r["kind"], "status": r["status"]}
-            for r in node_rows
-        ]
-
-        edge_rows = store.conn.execute(
-            "SELECT from_node, to_node FROM edges"
-        ).fetchall()
-        edges = [
-            {"from_node": r["from_node"], "to_node": r["to_node"]}
-            for r in edge_rows
-        ]
-
-        return {"instances": instances, "nodes": nodes, "edges": edges}
+        return store.get_graph()
 
     # -----------------------------------------------------------------------
     # P0-B: Gate API endpoints
