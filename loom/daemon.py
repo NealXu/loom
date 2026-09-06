@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 from loom.core.engine import step_instance
 from loom.core.state import record_transition
+from loom.notifications import send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +26,15 @@ class LoomDaemon:
 
     def __init__(self, store, runner, tick_interval: float = 2.0,
                  templates_dir: str | None = None, schedule_jobs: list[dict] | None = None,
-                 vault_dir: str | None = None, max_concurrent: int = 2):
+                 vault_dir: str | None = None, max_concurrent: int = 2,
+                 webhooks: list[dict] | None = None):
         self.store = store
         self.runner = runner
         self.tick_interval = tick_interval
         self.templates_dir = templates_dir
         self.vault_dir = vault_dir
         self.max_concurrent = max_concurrent
+        self.webhooks = webhooks or []
         self.scheduler = None
         if schedule_jobs:
             from loom.core.schedule import CronScheduler
@@ -82,6 +85,14 @@ class LoomDaemon:
                         self.store, inst.id, self.runner, vault_dir=self.vault_dir
                     )
                     logger.debug(f"Instance {inst.id} -> {status}")
+                    # P6-D: Send webhook notifications on terminal states
+                    if status in ("succeeded", "failed") and self.webhooks:
+                        try:
+                            notify_config = {"webhooks": self.webhooks}
+                            send_notification(notify_config, f"instance_{status}",
+                                            self.store.get_instance(inst.id))
+                        except Exception as e:
+                            logger.error(f"notification failed for {inst.id}: {e}")
                 except Exception as e:
                     logger.error(f"Error processing instance {inst.id}: {e}")
                     # Mark as failed to prevent infinite retries
@@ -94,6 +105,14 @@ class LoomDaemon:
                             inst.id, "failed",
                             finished_at=datetime.now().isoformat(),
                         )
+                        # P6-D: Send webhook notification on failure
+                        if self.webhooks:
+                            try:
+                                notify_config = {"webhooks": self.webhooks}
+                                send_notification(notify_config, "instance_failed",
+                                                self.store.get_instance(inst.id))
+                            except Exception as notify_err:
+                                logger.error(f"notification failed for {inst.id}: {notify_err}")
                     except Exception:
                         pass
 
