@@ -198,42 +198,47 @@
   <nav aria-label="Main navigation" class="sidebar">
     <div class="sidebar-brand">
       <h1>Loom</h1>
-      <span>Workflow Orchestrator</span>
+      <span data-i18n="brand.subtitle">Workflow Orchestrator</span>
+    </div>
+
+    <div id="language-switcher" class="language-switcher" style="display:flex;gap:0.25rem;padding:0.5rem 1rem;border-bottom:1px solid #334155;margin-bottom:0.5rem;">
+      <button data-lang="zh" style="flex:1;padding:0.25rem 0.5rem;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#94a3b8;cursor:pointer;font-size:0.8rem;font-family:inherit;">中文</button>
+      <button data-lang="en" style="flex:1;padding:0.25rem 0.5rem;border:1px solid #334155;border-radius:4px;background:#1e293b;color:#94a3b8;cursor:pointer;font-size:0.8rem;font-family:inherit;">EN</button>
     </div>
 
     <button class="nav-item active" data-view="dashboard" aria-label="Dashboard">
       <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-      <span class="nav-label">Dashboard</span>
+      <span class="nav-label" data-i18n="nav.dashboard">Dashboard</span>
     </button>
     <button class="nav-item" data-view="run" aria-label="Run">
       <svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
-      <span class="nav-label">Run</span>
+      <span class="nav-label" data-i18n="nav.run">Run</span>
     </button>
     <button class="nav-item" data-view="history" aria-label="History">
       <svg viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-      <span class="nav-label">History</span>
+      <span class="nav-label" data-i18n="nav.history">History</span>
     </button>
     <button class="nav-item" data-view="audit" aria-label="Audit">
       <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-      <span class="nav-label">Audit</span>
+      <span class="nav-label" data-i18n="nav.audit">Audit</span>
     </button>
     <button class="nav-item" data-view="cost" aria-label="Cost">
       <svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12V4m0 16v2M5 12h14"/></svg>
-      <span class="nav-label">Cost</span>
+      <span class="nav-label" data-i18n="nav.cost">Cost</span>
     </button>
     <button class="nav-item" data-view="digest" aria-label="Digest">
       <svg viewBox="0 0 24 24"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-      <span class="nav-label">Digest</span>
+      <span class="nav-label" data-i18n="nav.digest">Digest</span>
     </button>
     <button class="nav-item" data-view="templates" aria-label="Templates">
       <svg viewBox="0 0 24 24"><path d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm10 0a1 1 0 011-1h4a1 1 0 011 1v6a1 1 0 01-1 1h-4a1 1 0 01-1-1v-6z"/></svg>
-      <span class="nav-label">Templates</span>
+      <span class="nav-label" data-i18n="nav.templates">Templates</span>
     </button>
   </nav>
 
   <!-- Main content area -->
   <main class="main-content">
-    <div id="status">Loading...</div>
+    <div id="status" data-i18n="status.loading">Loading...</div>
 
     <!-- ============================================================ -->
     <!-- Dashboard view -->
@@ -242,40 +247,40 @@
       <div class="kpi-row" id="kpi-cards">
         <div class="kpi-card kpi-running">
           <div class="kpi-value" id="kpi-running">--</div>
-          <div class="kpi-label">Running</div>
+          <div class="kpi-label" data-i18n="kpi.running">Running</div>
         </div>
         <div class="kpi-card kpi-failed">
           <div class="kpi-value" id="kpi-failed">--</div>
-          <div class="kpi-label">Failed</div>
+          <div class="kpi-label" data-i18n="kpi.failed">Failed</div>
         </div>
         <div class="kpi-card kpi-success">
           <div class="kpi-value" id="kpi-success">--</div>
-          <div class="kpi-label">Succeeded</div>
+          <div class="kpi-label" data-i18n="kpi.succeeded">Succeeded</div>
         </div>
         <div class="kpi-card kpi-pending">
           <div class="kpi-value" id="kpi-pending">--</div>
-          <div class="kpi-label">Pending</div>
+          <div class="kpi-label" data-i18n="kpi.pending">Pending</div>
         </div>
       </div>
 
       <div class="layout">
         <div id="instances" class="panel">
-          <h2>Instances</h2>
+          <h2 data-i18n="panel.instances">Instances</h2>
           <div class="skeleton"></div>
           <div class="skeleton"></div>
           <div class="skeleton"></div>
         </div>
         <div id="gates" class="panel">
-          <h2>Pending Gates</h2>
+          <h2 data-i18n="panel.gates">Pending Gates</h2>
         </div>
       </div>
       <div id="graph" class="panel" style="margin-top: 1rem;">
-        <h2>Graph</h2>
+        <h2 data-i18n="panel.graph">Graph</h2>
         <div id="cytoscape-container" style="width: 100%; height: 500px; background: #0f1117; border-radius: 8px; position: relative;"></div>
         <div id="node-detail" style="display: none; margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
-          <h3 style="margin: 0 0 0.5rem 0;">Node Detail</h3>
+          <h3 style="margin: 0 0 0.5rem 0;" data-i18n="panel.node_detail">Node Detail</h3>
           <div id="node-detail-content"></div>
-          <button id="node-detail-close" aria-label="Close node detail" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+          <button id="node-detail-close" aria-label="Close node detail" data-i18n="btn.close" style="margin-top: 0.5rem; padding: 0.25rem 0.75rem; background: #334155; color: #e2e8f0; border: none; border-radius: 4px; cursor: pointer;">Close</button>
         </div>
       </div>
     </section>
@@ -285,38 +290,38 @@
     <!-- ============================================================ -->
     <section id="view-run" class="view">
       <div class="panel">
-        <h2>Run Template</h2>
+        <h2 data-i18n="panel.run_template">Run Template</h2>
         <form id="run-form">
           <div class="form-group">
-            <label for="run-template">Template</label>
+            <label for="run-template" data-i18n="label.template">Template</label>
             <select id="run-template" name="template">
-              <option value="">-- Select a template --</option>
+              <option value="" data-i18n="option.select_template">-- Select a template --</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="project_path">Project Path</label>
+            <label for="project_path" data-i18n="label.project_path">Project Path</label>
             <input type="text" id="project_path" name="project_path" placeholder="/path/to/project">
           </div>
           <div class="form-group">
-            <label for="params">Parameters (JSON)</label>
+            <label for="params" data-i18n="label.parameters">Parameters (JSON)</label>
             <textarea id="params" name="params" rows="3" placeholder='{"key": "value"}'></textarea>
           </div>
           <div class="form-group">
-            <label for="runner">Runner</label>
+            <label for="runner" data-i18n="label.runner">Runner</label>
             <select id="runner" name="runner">
-              <option value="default">Default Runner</option>
-              <option value="local">Local</option>
-              <option value="remote">Remote</option>
+              <option value="default" data-i18n="option.default_runner">Default Runner</option>
+              <option value="local" data-i18n="option.local">Local</option>
+              <option value="remote" data-i18n="option.remote">Remote</option>
             </select>
           </div>
           <div class="form-group">
-            <label>Execution Mode</label>
+            <label data-i18n="label.execution_mode">Execution Mode</label>
             <div class="radio-group">
-              <label><input type="radio" name="mode" value="async" checked> Async</label>
-              <label><input type="radio" name="mode" value="sync"> Sync</label>
+              <label><input type="radio" name="mode" value="async" checked> <span data-i18n="mode.async">Async</span></label>
+              <label><input type="radio" name="mode" value="sync"> <span data-i18n="mode.sync">Sync</span></label>
             </div>
           </div>
-          <button type="submit" class="btn btn-primary" id="run-submit">Run Template</button>
+          <button type="submit" class="btn btn-primary" id="run-submit" data-i18n="btn.run_template">Run Template</button>
         </form>
       </div>
     </section>
@@ -326,41 +331,41 @@
     <!-- ============================================================ -->
     <section id="view-history" class="view">
       <div class="panel">
-        <h2>Instance History</h2>
+        <h2 data-i18n="panel.instance_history">Instance History</h2>
         <div class="filter-bar">
           <div class="form-group">
-            <label for="filter-template">Template</label>
+            <label for="filter-template" data-i18n="label.template">Template</label>
             <select id="filter-template">
-              <option value="">All Templates</option>
+              <option value="" data-i18n="option.all_templates">All Templates</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="filter-status">Status</label>
+            <label for="filter-status" data-i18n="label.status">Status</label>
             <select id="filter-status">
-              <option value="">All Statuses</option>
-              <option value="running">Running</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-              <option value="pending">Pending</option>
+              <option value="" data-i18n="option.all_statuses">All Statuses</option>
+              <option value="running" data-i18n="status.running">Running</option>
+              <option value="completed" data-i18n="status.completed">Completed</option>
+              <option value="failed" data-i18n="status.failed">Failed</option>
+              <option value="pending" data-i18n="status.pending">Pending</option>
             </select>
           </div>
         </div>
         <table class="data-table" id="history-table">
           <thead>
             <tr>
-              <th aria-sort="none" data-sort="id">ID</th>
-              <th aria-sort="none" data-sort="template">Template</th>
-              <th aria-sort="none" data-sort="status">Status</th>
-              <th aria-sort="none" data-sort="runner">Runner</th>
-              <th aria-sort="none" data-sort="cost">Cost</th>
-              <th aria-sort="none" data-sort="created">Created</th>
+              <th aria-sort="none" data-sort="id" data-i18n="th.id">ID</th>
+              <th aria-sort="none" data-sort="template" data-i18n="th.template">Template</th>
+              <th aria-sort="none" data-sort="status" data-i18n="th.status">Status</th>
+              <th aria-sort="none" data-sort="runner" data-i18n="th.runner">Runner</th>
+              <th aria-sort="none" data-sort="cost" data-i18n="th.cost">Cost</th>
+              <th aria-sort="none" data-sort="created" data-i18n="th.created">Created</th>
             </tr>
           </thead>
           <tbody id="history-body">
-            <tr><td colspan="6" class="empty-msg">Loading...</td></tr>
+            <tr><td colspan="6" class="empty-msg" data-i18n="status.loading">Loading...</td></tr>
           </tbody>
         </table>
-        <p class="empty-msg" id="history-empty" style="display:none;">No instances found.</p>
+        <p class="empty-msg" id="history-empty" style="display:none;" data-i18n="msg.no_instances_found">No instances found.</p>
       </div>
     </section>
 
@@ -369,13 +374,13 @@
     <!-- ============================================================ -->
     <section id="view-audit" class="view">
       <div class="panel">
-        <h2>Audit Timeline</h2>
+        <h2 data-i18n="panel.audit_timeline">Audit Timeline</h2>
         <div id="timeline" class="timeline-list">
           <div class="skeleton"></div>
           <div class="skeleton"></div>
           <div class="skeleton"></div>
         </div>
-        <p class="empty-msg" id="audit-empty" style="display:none;">No audit entries found.</p>
+        <p class="empty-msg" id="audit-empty" style="display:none;" data-i18n="msg.no_audit_entries">No audit entries found.</p>
       </div>
     </section>
 
@@ -384,9 +389,9 @@
     <!-- ============================================================ -->
     <section id="view-cost" class="view">
       <div class="panel">
-        <h2>Cost Analysis</h2>
+        <h2 data-i18n="panel.cost_analysis">Cost Analysis</h2>
         <div style="margin-bottom: 1rem;">
-          <button class="btn btn-secondary" id="toggle-cost-view" aria-label="Toggle between chart and table view">View as Table</button>
+          <button class="btn btn-secondary" id="toggle-cost-view" aria-label="Toggle between chart and table view" data-i18n="btn.view_as_table">View as Table</button>
         </div>
         <div id="cost-chart-container" class="cost-chart-container">
           <div id="cost-chart">
@@ -398,14 +403,14 @@
           <table class="data-table" id="cost-table">
             <thead>
               <tr>
-                <th aria-sort="none">Instance</th>
-                <th aria-sort="none">Template</th>
-                <th aria-sort="none">Cost (USD)</th>
-                <th aria-sort="none">Tokens</th>
+                <th aria-sort="none" data-i18n="th.instance">Instance</th>
+                <th aria-sort="none" data-i18n="th.template">Template</th>
+                <th aria-sort="none" data-i18n="th.cost_usd">Cost (USD)</th>
+                <th aria-sort="none" data-i18n="th.tokens">Tokens</th>
               </tr>
             </thead>
             <tbody id="cost-table-body">
-              <tr><td colspan="4" class="empty-msg">No data</td></tr>
+              <tr><td colspan="4" class="empty-msg" data-i18n="msg.no_data">No data</td></tr>
             </tbody>
           </table>
         </div>
@@ -418,29 +423,29 @@
     <section id="view-digest" class="view">
       <div id="digest-budget-alert" class="budget-alert" style="display:none;">
         <svg viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.96L13.75 4a2 2 0 00-3.5 0L3.32 16.04A2 2 0 005.07 19z"/></svg>
-        <span class="budget-alert-text">Warning: over budget -- some instances exceed the red line threshold.</span>
+        <span class="budget-alert-text" data-i18n="msg.over_budget_warning">Warning: over budget -- some instances exceed the red line threshold.</span>
       </div>
       <div class="panel">
-        <h2>Digest Summary</h2>
+        <h2 data-i18n="panel.digest_summary">Digest Summary</h2>
         <div class="digest-summary" id="digest-cards">
           <div class="digest-card">
-            <div class="digest-card-label">Total Cost</div>
+            <div class="digest-card-label" data-i18n="digest.total_cost">Total Cost</div>
             <div class="digest-card-value" id="digest-total-cost">--</div>
           </div>
           <div class="digest-card">
-            <div class="digest-card-label">Total Instances</div>
+            <div class="digest-card-label" data-i18n="digest.total_instances">Total Instances</div>
             <div class="digest-card-value" id="digest-total-instances">--</div>
           </div>
           <div class="digest-card">
-            <div class="digest-card-label">Total Tokens</div>
+            <div class="digest-card-label" data-i18n="digest.total_tokens">Total Tokens</div>
             <div class="digest-card-value" id="digest-total-tokens">--</div>
           </div>
           <div class="digest-card">
-            <div class="digest-card-label">Over Budget Count</div>
+            <div class="digest-card-label" data-i18n="digest.over_budget_count">Over Budget Count</div>
             <div class="digest-card-value" id="digest-over-budget">--</div>
           </div>
         </div>
-        <p class="empty-msg" id="digest-empty" style="display:none;">No digest data available.</p>
+        <p class="empty-msg" id="digest-empty" style="display:none;" data-i18n="msg.no_digest_data">No digest data available.</p>
       </div>
     </section>
 
@@ -449,22 +454,22 @@
     <!-- ============================================================ -->
     <section id="view-templates" class="view">
       <div class="panel">
-        <h2>Install Template</h2>
+        <h2 data-i18n="panel.install_template">Install Template</h2>
         <form id="template-install-form">
           <div class="form-group">
-            <label for="source">Source URL</label>
+            <label for="source" data-i18n="label.source_url">Source URL</label>
             <input type="text" id="source" name="source" placeholder="https://example.com/templates/my-template.yaml">
           </div>
-          <button type="submit" class="btn btn-primary" id="install-template-btn">Install Template</button>
+          <button type="submit" class="btn btn-primary" id="install-template-btn" data-i18n="btn.install_template">Install Template</button>
         </form>
       </div>
       <div class="panel">
-        <h2>Installed Templates</h2>
+        <h2 data-i18n="panel.installed_templates">Installed Templates</h2>
         <div id="installed-templates-list">
           <div class="skeleton"></div>
           <div class="skeleton"></div>
         </div>
-        <p class="empty-msg" id="templates-empty" style="display:none;">No templates installed.</p>
+        <p class="empty-msg" id="templates-empty" style="display:none;" data-i18n="msg.no_templates_installed">No templates installed.</p>
       </div>
     </section>
 
@@ -1331,6 +1336,349 @@
 
   refreshData();
   connectSSE();
+})();
+</script>
+
+<script>
+// =====================================================================
+// i18n — internationalization module
+// =====================================================================
+(function () {
+  "use strict";
+
+  var translations = {
+    zh: {
+      // Brand
+      "brand.subtitle": "工作流编排器",
+
+      // Navigation
+      "nav.dashboard": "仪表盘",
+      "nav.run": "运行",
+      "nav.history": "历史",
+      "nav.audit": "审计",
+      "nav.cost": "成本",
+      "nav.digest": "摘要",
+      "nav.templates": "模板",
+
+      // Status bar
+      "status.loading": "加载中...",
+      "status.system": "系统: ",
+      "status.loaded": "已加载 ",
+      "status.instances": " 个实例，",
+      "status.pending_gates": " 个待处理门控",
+      "status.error_loading": "加载数据出错",
+      "status.reconnecting": "实时更新重新连接中...",
+
+      // KPI cards
+      "kpi.running": "运行中",
+      "kpi.failed": "失败",
+      "kpi.succeeded": "成功",
+      "kpi.pending": "待处理",
+
+      // Panel headers
+      "panel.instances": "实例列表",
+      "panel.gates": "待处理门控",
+      "panel.graph": "依赖图",
+      "panel.node_detail": "节点详情",
+      "panel.run_template": "运行模板",
+      "panel.instance_history": "实例历史",
+      "panel.audit_timeline": "审计时间线",
+      "panel.cost_analysis": "成本分析",
+      "panel.digest_summary": "摘要概览",
+      "panel.install_template": "安装模板",
+      "panel.installed_templates": "已安装模板",
+
+      // Form labels
+      "label.template": "模板",
+      "label.project_path": "项目路径",
+      "label.parameters": "参数 (JSON)",
+      "label.runner": "执行器",
+      "label.execution_mode": "执行模式",
+      "label.status": "状态",
+      "label.source_url": "来源 URL",
+
+      // Options / selects
+      "option.select_template": "-- 请选择模板 --",
+      "option.all_templates": "全部模板",
+      "option.all_statuses": "全部状态",
+      "option.default_runner": "默认执行器",
+      "option.local": "本地",
+      "option.remote": "远程",
+
+      // Execution modes
+      "mode.async": "异步",
+      "mode.sync": "同步",
+
+      // Status values
+      "status.running": "运行中",
+      "status.completed": "已完成",
+      "status.failed": "失败",
+      "status.pending": "待处理",
+
+      // Table headers
+      "th.id": "ID",
+      "th.template": "模板",
+      "th.status": "状态",
+      "th.runner": "执行器",
+      "th.cost": "成本",
+      "th.cost_usd": "成本 (USD)",
+      "th.tokens": "Token 数",
+      "th.instance": "实例",
+      "th.created": "创建时间",
+
+      // Buttons
+      "btn.run_template": "运行模板",
+      "btn.close": "关闭",
+      "btn.approve": "批准",
+      "btn.reject": "拒绝",
+      "btn.install_template": "安装模板",
+      "btn.view_as_table": "表格视图",
+      "btn.view_as_chart": "图表视图",
+      "btn.running": "运行中...",
+      "btn.installing": "安装中...",
+
+      // Digest labels
+      "digest.total_cost": "总成本",
+      "digest.total_instances": "总实例数",
+      "digest.total_tokens": "总 Token 数",
+      "digest.over_budget_count": "超预算数量",
+
+      // Messages
+      "msg.no_instances_found": "未找到实例。",
+      "msg.no_pending_gates": "暂无待处理门控。",
+      "msg.no_audit_entries": "未找到审计记录。",
+      "msg.no_data": "暂无数据",
+      "msg.no_graph_data": "暂无图表数据。",
+      "msg.no_digest_data": "暂无摘要数据。",
+      "msg.no_templates_installed": "尚未安装模板。",
+      "msg.over_budget_warning": "警告：超出预算 -- 部分实例已超过红色阈值。",
+      "msg.gate_approved": "门控已批准",
+      "msg.gate_rejected": "门控已拒绝",
+      "msg.failed_approve": "批准门控失败",
+      "msg.failed_reject": "拒绝门控失败",
+      "msg.run_started": "运行已启动: ",
+      "msg.failed_start_run": "启动运行失败",
+      "msg.network_error": "网络错误",
+      "msg.invalid_json": "无效的 JSON 参数",
+      "msg.template_installed": "模板安装成功",
+      "msg.failed_install_template": "安装模板失败",
+      "msg.enter_source_url": "请输入来源 URL",
+      "msg.rejection_reason": "拒绝原因:",
+      "msg.instance_prefix": "实例: ",
+      "msg.kind_prefix": "类型: ",
+
+      // Audit timeline
+      "audit.approved": "已批准",
+      "audit.rejected": "已拒绝",
+      "audit.pending": "待处理",
+      "audit.gate": "门控 ",
+      "audit.node": " · 节点 ",
+      "audit.instance": " · 实例 ",
+      "audit.by": " · 操作者 ",
+
+      // Language switcher
+      "lang.zh": "中文",
+      "lang.en": "EN"
+    },
+    en: {
+      // Brand
+      "brand.subtitle": "Workflow Orchestrator",
+
+      // Navigation
+      "nav.dashboard": "Dashboard",
+      "nav.run": "Run",
+      "nav.history": "History",
+      "nav.audit": "Audit",
+      "nav.cost": "Cost",
+      "nav.digest": "Digest",
+      "nav.templates": "Templates",
+
+      // Status bar
+      "status.loading": "Loading...",
+      "status.system": "System: ",
+      "status.loaded": "Loaded ",
+      "status.instances": " instance",
+      "status.pending_gates": " pending gate",
+      "status.error_loading": "Error loading data",
+      "status.reconnecting": "Live updates reconnecting...",
+
+      // KPI cards
+      "kpi.running": "Running",
+      "kpi.failed": "Failed",
+      "kpi.succeeded": "Succeeded",
+      "kpi.pending": "Pending",
+
+      // Panel headers
+      "panel.instances": "Instances",
+      "panel.gates": "Pending Gates",
+      "panel.graph": "Graph",
+      "panel.node_detail": "Node Detail",
+      "panel.run_template": "Run Template",
+      "panel.instance_history": "Instance History",
+      "panel.audit_timeline": "Audit Timeline",
+      "panel.cost_analysis": "Cost Analysis",
+      "panel.digest_summary": "Digest Summary",
+      "panel.install_template": "Install Template",
+      "panel.installed_templates": "Installed Templates",
+
+      // Form labels
+      "label.template": "Template",
+      "label.project_path": "Project Path",
+      "label.parameters": "Parameters (JSON)",
+      "label.runner": "Runner",
+      "label.execution_mode": "Execution Mode",
+      "label.status": "Status",
+      "label.source_url": "Source URL",
+
+      // Options / selects
+      "option.select_template": "-- Select a template --",
+      "option.all_templates": "All Templates",
+      "option.all_statuses": "All Statuses",
+      "option.default_runner": "Default Runner",
+      "option.local": "Local",
+      "option.remote": "Remote",
+
+      // Execution modes
+      "mode.async": "Async",
+      "mode.sync": "Sync",
+
+      // Status values
+      "status.running": "Running",
+      "status.completed": "Completed",
+      "status.failed": "Failed",
+      "status.pending": "Pending",
+
+      // Table headers
+      "th.id": "ID",
+      "th.template": "Template",
+      "th.status": "Status",
+      "th.runner": "Runner",
+      "th.cost": "Cost",
+      "th.cost_usd": "Cost (USD)",
+      "th.tokens": "Tokens",
+      "th.instance": "Instance",
+      "th.created": "Created",
+
+      // Buttons
+      "btn.run_template": "Run Template",
+      "btn.close": "Close",
+      "btn.approve": "Approve",
+      "btn.reject": "Reject",
+      "btn.install_template": "Install Template",
+      "btn.view_as_table": "View as Table",
+      "btn.view_as_chart": "View as Chart",
+      "btn.running": "Running...",
+      "btn.installing": "Installing...",
+
+      // Digest labels
+      "digest.total_cost": "Total Cost",
+      "digest.total_instances": "Total Instances",
+      "digest.total_tokens": "Total Tokens",
+      "digest.over_budget_count": "Over Budget Count",
+
+      // Messages
+      "msg.no_instances_found": "No instances found.",
+      "msg.no_pending_gates": "No pending gates.",
+      "msg.no_audit_entries": "No audit entries found.",
+      "msg.no_data": "No data",
+      "msg.no_graph_data": "No graph data available.",
+      "msg.no_digest_data": "No digest data available.",
+      "msg.no_templates_installed": "No templates installed.",
+      "msg.over_budget_warning": "Warning: over budget -- some instances exceed the red line threshold.",
+      "msg.gate_approved": "Gate approved",
+      "msg.gate_rejected": "Gate rejected",
+      "msg.failed_approve": "Failed to approve gate",
+      "msg.failed_reject": "Failed to reject gate",
+      "msg.run_started": "Run started: ",
+      "msg.failed_start_run": "Failed to start run",
+      "msg.network_error": "Network error",
+      "msg.invalid_json": "Invalid JSON parameters",
+      "msg.template_installed": "Template installed successfully",
+      "msg.failed_install_template": "Failed to install template",
+      "msg.enter_source_url": "Please enter a source URL",
+      "msg.rejection_reason": "Rejection reason:",
+      "msg.instance_prefix": "Instance: ",
+      "msg.kind_prefix": "Kind: ",
+
+      // Audit timeline
+      "audit.approved": "Approved",
+      "audit.rejected": "Rejected",
+      "audit.pending": "Pending",
+      "audit.gate": "Gate ",
+      "audit.node": " · node ",
+      "audit.instance": " · instance ",
+      "audit.by": " · by ",
+
+      // Language switcher
+      "lang.zh": "中文",
+      "lang.en": "EN"
+    }
+  };
+
+  function getCurrentLang() {
+    try {
+      var stored = localStorage.getItem("loom_lang");
+      if (stored === "zh" || stored === "en") return stored;
+    } catch (e) { /* localStorage may be unavailable */ }
+    return "zh";
+  }
+
+  function applyI18n() {
+    var lang = getCurrentLang();
+    var dict = translations[lang] || translations["zh"];
+    var elements = document.querySelectorAll("[data-i18n]");
+    elements.forEach(function (el) {
+      var key = el.getAttribute("data-i18n");
+      if (dict[key] !== undefined) {
+        el.textContent = dict[key];
+      }
+    });
+
+    // Update language switcher active state
+    var switcher = document.getElementById("language-switcher");
+    if (switcher) {
+      var btns = switcher.querySelectorAll("[data-lang]");
+      btns.forEach(function (btn) {
+        if (btn.getAttribute("data-lang") === lang) {
+          btn.style.background = "#3b82f6";
+          btn.style.color = "#fff";
+          btn.style.borderColor = "#3b82f6";
+        } else {
+          btn.style.background = "#1e293b";
+          btn.style.color = "#94a3b8";
+          btn.style.borderColor = "#334155";
+        }
+      });
+    }
+
+    // Update <html lang="...">
+    document.documentElement.setAttribute("lang", lang);
+  }
+
+  function switchLanguage(lang) {
+    if (lang !== "zh" && lang !== "en") return;
+    try {
+      localStorage.setItem("loom_lang", lang);
+    } catch (e) { /* ignore */ }
+    applyI18n();
+  }
+
+  // Bind language switcher buttons
+  var switcher = document.getElementById("language-switcher");
+  if (switcher) {
+    switcher.querySelectorAll("[data-lang]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        switchLanguage(btn.getAttribute("data-lang"));
+      });
+    });
+  }
+
+  // Expose globally for inline handlers (if any)
+  window.switchLanguage = switchLanguage;
+  window.applyI18n = applyI18n;
+
+  // Apply on page load
+  applyI18n();
 })();
 </script>
 </body>
