@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loom Favicon 方案审核</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f1117; color: #e2e8f0; padding: 2rem; line-height: 1.6; }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .sub { color: #64748b; margin-bottom: 2rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 1.5rem; }
+  .card h2 { font-size: 1.1rem; color: #93c5fd; margin-bottom: .25rem; }
+  .card .tag { display:inline-block; font-size: .72rem; background:#0f1117; color:#64748b; padding:.15rem .5rem; border-radius:4px; margin-bottom:1rem;}
+  .sizes { display: flex; align-items: flex-end; gap: 1.25rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+  .size-item { text-align: center; }
+  .size-item img { display: block; image-rendering: pixelated; }
+  .size-label { font-size: .7rem; color: #64748b; margin-top: .4rem; }
+  .mock-tab { display:flex; align-items:center; gap:.5rem; background:#1a1f2e; border:1px solid #334155; border-radius:8px 8px 0 0; padding:.5rem .75rem; margin-bottom:.25rem;}
+  .mock-tab img { width:16px; height:16px; }
+  .mock-tab span { font-size:.8rem; color:#cbd5e1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .light-test { background:#f1f5f9; border-radius:8px; padding:.6rem 1rem; margin-top:1rem; display:flex; align-items:center; gap:.5rem;}
+  .light-test span { font-size:.8rem; color:#0f1117; }
+  .desc { font-size:.85rem; color:#94a3b8; margin-top:1rem; }
+  .recommend { border-color:#3b82f6; box-shadow:0 0 0 1px #3b82f6; }
+  .recommend h2::after { content:" ★ 推荐"; color:#22c55e; font-size:.85rem; }
+</style>
+</head>
+<body>
+  <h1>Loom Favicon 设计方案</h1>
+  <p class="sub">SVG 矢量 · 深蓝底 / 主色蓝 #3b82f6 · 下方为真实像素渲染（16/32/48px）与浏览器标签页模拟</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>方案 A · 经纬编织</h2>
+      <span class="tag">Weave</span>
+      <div class="sizes">
+        <div class="size-item"><img src="favicon-concept-A-weave.svg" width="16" height="16"><div class="size-label">16px</div></div>
+        <div class="size-item"><img src="favicon-concept-A-weave.svg" width="32" height="32"><div class="size-label">32px</div></div>
+        <div class="size-item"><img src="favicon-concept-A-weave.svg" width="48" height="48"><div class="size-label">48px</div></div>
+      </div>
+      <div class="mock-tab"><img src="favicon-concept-A-weave.svg"><span>Loom · 工作流编排器</span></div>
+      <div class="light-test"><img src="favicon-concept-A-weave.svg" width="24" height="24"><span>浅色背景测试</span></div>
+      <p class="desc">直击 "Loom=织机" 语义：竖向 warp + 横向 weft 交织，蓝色交点为节点。品牌隐喻最强。</p>
+    </div>
+
+    <div class="card recommend">
+      <h2>方案 B · 节点字母 L</h2>
+      <span class="tag">Node L</span>
+      <div class="sizes">
+        <div class="size-item"><img src="favicon-concept-B-nodeL.svg" width="16" height="16"><div class="size-label">16px</div></div>
+        <div class="size-item"><img src="favicon-concept-B-nodeL.svg" width="32" height="32"><div class="size-label">32px</div></div>
+        <div class="size-item"><img src="favicon-concept-B-nodeL.svg" width="48" height="48"><div class="size-label">48px</div></div>
+      </div>
+      <div class="mock-tab"><img src="favicon-concept-B-nodeL.svg"><span>Loom · 工作流编排器</span></div>
+      <div class="light-test"><img src="favicon-concept-B-nodeL.svg" width="24" height="24"><span>浅色背景测试</span></div>
+      <p class="desc">Loom 首字母 "L" 由图节点连成——既点出品牌名，又表达"图/编排"内核。小尺寸辨识度最高，故推荐。</p>
+    </div>
+
+    <div class="card">
+      <h2>方案 C · 双层 DAG</h2>
+      <span class="tag">Graph</span>
+      <div class="sizes">
+        <div class="size-item"><img src="favicon-concept-C-dag.svg" width="16" height="16"><div class="size-label">16px</div></div>
+        <div class="size-item"><img src="favicon-concept-C-dag.svg" width="32" height="32"><div class="size-label">32px</div></div>
+        <div class="size-item"><img src="favicon-concept-C-dag.svg" width="48" height="48"><div class="size-label">48px</div></div>
+      </div>
+      <div class="mock-tab"><img src="favicon-concept-C-dag.svg"><span>Loom · 工作流编排器</span></div>
+      <div class="light-test"><img src="favicon-concept-C-dag.svg" width="24" height="24"><span>浅色背景测试</span></div>
+      <p class="desc">一个源节点分叉到中间层再汇聚到结果节点——表达 "two-layer graph"。概念精确但 16px 下偏密。</p>
+    </div>
+  </div>
+</body>
+</html>

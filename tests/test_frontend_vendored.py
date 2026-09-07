@@ -33,6 +33,27 @@ def test_vendor_graphlib_exists():
     assert (VENDOR_DIR / "graphlib.min.js").exists()
 
 
+def test_vendor_dagre_lib_exists():
+    """cytoscape-dagre's UMD requires the `dagre` package (NOT just graphlib).
+
+    Without dagre.min.js the plugin factory receives `undefined` and throws
+    'Cannot read properties of undefined (reading graphlib)', so the DAG never
+    renders. Vendoring graphlib alone is insufficient.
+    """
+    assert (VENDOR_DIR / "dagre.min.js").exists()
+
+
+def test_dagre_loaded_before_cytoscape_dagre():
+    """Script order must be graphlib -> dagre -> cytoscape-dagre (UMD global deps)."""
+    html = _read_html()
+    order = [html.index(tok) for tok in (
+        "vendor/graphlib.min.js",
+        "vendor/dagre.min.js",
+        "vendor/cytoscape-dagre.min.js",
+    )]
+    assert order == sorted(order), "dagre must load after graphlib and before cytoscape-dagre"
+
+
 def test_dagre_layout_configured():
     """HTML JS uses 'dagre' layout instead of 'cose'."""
     html = _read_html()

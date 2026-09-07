@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import yaml
@@ -64,7 +65,11 @@ def create_app(store, templates_dir: str = "loom/templates", red_line_usd: float
         return credentials
     # --------------------------------------------------------------------------
 
-    _INDEX_HTML = Path(__file__).resolve().parent / "static" / "index.html"
+    _STATIC_DIR = Path(__file__).resolve().parent / "static"
+    _INDEX_HTML = _STATIC_DIR / "index.html"
+
+    # Serve static assets (favicon, vendor JS libs) under /static
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
     @app.get("/")
     def index():
