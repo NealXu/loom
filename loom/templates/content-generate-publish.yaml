@@ -1,0 +1,266 @@
+id: content-generate-publish
+version: 1
+trigger: [cli]
+provenance: manual
+description: |
+  内容生成+审核+发布流水线（手动触发）
+  从 Vault 大纲候选 → 撰写草稿 → 🔒人工审核 → 平台发布
+  支持小红书、知乎、公众号三个平台
+
+params:
+  # Vault 根路径
+  vault_path:
+    type: string
+    required: true
+    default: "D:/Vaults/neal"
+
+  # 自媒体目录
+  content_base:
+    type: string
+    required: true
+    default: "09-自媒体"
+
+  # 目标平台
+  platform:
+    type: string
+    required: true
+    default: "xiaohongshu"
+    description: "xiaohongshu / zhihu / gongzhonghao"
+
+  # 大纲文件路径（从 _大纲/ 目录选择）
+  outline_path:
+    type: string
+    required: false
+    default: ""
+    description: "指定大纲文件的完整路径，留空则使用最新的大纲候选"
+
+  # 大纲编号（如果有多个候选，选择第几个）
+  outline_index:
+    type: string
+    required: false
+    default: "1"
+    description: "选择第 N 个大纲候选（1/2/3）"
+
+nodes:
+  # ============================================================
+  # Node 1: 加载大纲 + 素材
+  # ============================================================
+  - id: load-outline
+    kind: analysis
+    tier: tooling
+    spec: |
+      加载选定的大纲和关联素材。
+
+      步骤：
+      1. 如果 outline_path 非空，读取：{{outline_path}}
+      2. 否则扫描 {{vault_path}}/{{content_base}}/_大纲/ 目录
+         - 按 platform={{platform}} 过滤
+         - 按修改时间排序
+         - 取第 {{outline_index}} 个
+      3. 从大纲的 frontmatter 中读取 source 字段，加载关联素材
+      4. 加载平台规则文件（如果存在）：
+         - 小红书：{{content_base}}/01-小红书/20260803-093334-发帖规则.md
+         - 知乎：{{content_base}}/03-知乎/ 下的规则文件
+         - 公众号：{{content_base}}/04-公众号/ 下的规则文件
+
+      输出：在控制台打印大纲摘要和素材要点，供下一步使用。
+
+    depends_on: []
+
+  # ============================================================
+  # Node 2: 撰写草稿
+  # ============================================================
+  - id: write-draft
+    kind: coding
+    tier: heavy
+    spec: |
+      基于大纲和素材，撰写{{platform}}平台的图文草稿。
+
+      输入：
+      - 上一步加载的大纲文件
+      - 关联的素材文件
+      - 平台规则
+
+      ## 平台特定写作要求
+
+      ### 小红书 (xiaohongshu)
+      - **标题**：15-25 字，吸引眼球但不标题党，可用 emoji
+      - **正文**：800-1500 字
+      - **格式**：分段清晰，每段一个要点，善用 emoji 点缀
+      - **开头**：前 3 行抓住注意力（数据冲击/痛点共鸣/悬念）
+      - **结尾**：行动号召（关注/收藏/评论）
+      - **标签**：5-8 个话题标签，用 # 前缀
+      - **配图建议**：封面图 + 2-3 张内容图
+
+      ### 知乎 (zhihu)
+      - **标题**：可以是问题形式，也可以直接陈述
+      - **正文**：2000-5000 字（深度长文）
+      - **格式**：学术风格，引用数据要标注来源
+      - **开头**：直接给出核心结论，再展开论证
+      - **结构**：清晰的小标题分层，善用表格/代码块/引用
+      - **结尾**：总结 + 延伸讨论
+      - **引用**：标注信息来源，增加可信度
+
+      ### 公众号 (gongzhonghao)
+      - **标题**：吸引力强，可以更长一些（20-35 字）
+      - **正文**：3000-8000 字（深度长文）
+      - **格式**：排版讲究，段落间留白，善用分割线
+      - **开头**：故事/场景导入，引发共鸣
+      - **结构**：起承转合，层层递进
+      - **结尾**：升华主题 + 引导关注/转发
+      - **原创声明**：标注是否为原创
+
+      ## 通用要求
+      1. 内容必须基于素材，不编造数据
+      2. 加入个人视角/体验/观点（避免纯模板化）
+      3. AI 辅助创作声明
+      4. 不抄袭，有信息增量
+
+      输出：草稿文件
+      写入目录：
+      - 小红书：{{vault_path}}/{{content_base}}/01-小红书/_草稿/
+      - 知乎：{{vault_path}}/{{content_base}}/03-知乎/_草稿/
+      - 公众号：{{vault_path}}/{{content_base}}/04-公众号/_草稿/
+
+      文件名格式：{YYYYMMDD}-{HHmmss}-{slug}.md
+
+      草稿文件格式：
+      ```markdown
+      ---
+      title: {标题}
+      platform: {{platform}}
+      tags: [{标签列表}]
+      source_material: {素材文件路径}
+      outline: {大纲文件路径}
+      ai_assisted: true
+      status: draft
+      created: {timestamp}
+      word_count: {字数}
+      ---
+
+      # {标题}
+
+      {正文内容}
+
+      ---
+      🤖 AI 辅助创作 | 📝 人工审阅修改
+      ```
+
+    depends_on: [load-outline]
+
+  # ============================================================
+  # Node 3: 门控 - 人工审核
+  # ============================================================
+  - id: human-review
+    kind: review
+    tier: critical
+    gate: approve
+    spec: |
+      呈现草稿供人工审核。
+
+      草稿路径：上一步生成的文件
+
+      ## 审核清单
+
+      ### 内容质量
+      - [ ] 标题是否吸引人？
+      - [ ] 开头是否能抓住注意力？
+      - [ ] 内容是否准确（数据/事实）？
+      - [ ] 是否有个人视角/体验/观点？
+      - [ ] 是否有信息增量（不是简单的素材搬运）？
+
+      ### 平台适配
+      - [ ] 字数是否符合平台要求？
+      - [ ] 格式是否符合平台习惯？
+      - [ ] 标签/话题是否合适？
+      - [ ] 配图建议是否合理？
+
+      ### 合规检查
+      - [ ] AI 辅助创作声明？
+      - [ ] 不自动发布？
+      - [ ] 人工审阅修改痕迹？
+      - [ ] 不违反平台规则？
+
+      ## 用户操作
+      - **Approve** → 进入发布准备
+      - **Reject + 批语** → 根据反馈修改草稿（回到 Node 2 重新生成）
+      - **手动编辑** → 直接在 Vault 中编辑草稿文件，然后重新审核
+
+    depends_on: [write-draft]
+
+  # ============================================================
+  # Node 4: 发布准备
+  # ============================================================
+  - id: prepare-publish
+    kind: deploy
+    tier: critical
+    spec: |
+      将审核通过的草稿转为各平台的发布格式。
+
+      ## 小红书 (xiaohongshu)
+      使用 inkwell 的发布流程：
+      ```bash
+      cd D:/Codes/inkwell
+      # 将草稿转为 inkwell draft 格式
+      # 然后执行 publish 准备（不自动点击发布）
+      npm run dev -- publish --draft "{draft_path}" --dry-run
+      ```
+      这会打开浏览器，自动填写标题/正文/标签，等待人工点击发布。
+
+      ## 知乎 (zhihu)
+      知乎目前没有自动化发布工具。
+      产出一个「发布准备包」：
+      - 格式化好的正文（Markdown → 知乎格式）
+      - 话题标签列表
+      - 封面图建议
+      - 手动发布步骤指引
+
+      写入：{{vault_path}}/{{content_base}}/03-知乎/_发布准备/{filename}-发布准备.md
+
+      ## 公众号 (gongzhonghao)
+      公众号目前没有自动化发布工具。
+      产出一个「发布准备包」：
+      - 格式化好的正文（Markdown → 公众号排版）
+      - 原创声明建议
+      - 封面图建议
+      - 手动发布步骤指引
+
+      写入：{{vault_path}}/{{content_base}}/04-公众号/_发布准备/{filename}-发布准备.md
+
+      ## 通用
+      更新草稿文件的 status 字段：draft → ready_to_publish
+
+    depends_on: [human-review]
+
+  # ============================================================
+  # Node 5: 记录发布结果
+  # ============================================================
+  - id: record-result
+    kind: report
+    tier: tooling
+    spec: |
+      记录发布结果，归档素材。
+
+      步骤：
+      1. 用户手动发布后，更新草稿文件：
+         - status: ready_to_publish → published
+         - published_at: {timestamp}
+         - published_url: {链接，如果用户填写}
+
+      2. 将草稿从 _草稿/ 移到正式目录：
+         - 小红书：{{content_base}}/01-小红书/{filename}.md
+         - 知乎：{{content_base}}/03-知乎/{filename}.md
+         - 公众号：{{content_base}}/04-公众号/{filename}.md
+
+      3. 更新关联素材文件的记录：
+         - 标注该素材已被用于生成某篇内容
+         - 记录发布平台和时间
+
+      4. 输出发布摘要：
+         - 平台
+         - 标题
+         - 字数
+         - 发布时间
+         - 链接（如有）
+
+    depends_on: [prepare-publish]
